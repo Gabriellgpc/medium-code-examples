@@ -1,0 +1,33 @@
+[project]
+name = "rf-detr-example"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "colored>=2.3.0",
+    "loguru>=0.7.3",
+    "onnx>=1.17.0",
+    "onnxruntime>=1.21.0",
+    "openvino>=2025.1.0",
+    "rfdetr>=1.1.0",
+    "supervision>=0.25.1",
+    "wandb>=0.19.9",
+]
+
+
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+]

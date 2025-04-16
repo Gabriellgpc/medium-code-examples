@@ -43,8 +43,8 @@ class RFDETRDetector:  # noqa: D101
         self,  # noqa: D107, PLR0913
         model_path: str,
         class_names: list[str],
-        input_height: int = 560,
-        input_width: int = 560,
+        input_height: int = 280,
+        input_width: int = 280,
         max_detections: int = 300,
         min_confidence: float = 0.5,
         nms_threshold: float = 0.7,

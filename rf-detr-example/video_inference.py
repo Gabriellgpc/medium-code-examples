@@ -42,9 +42,7 @@ def main(video_source: str, model_path: str, device: str) -> None:
     detector = RFDETRDetector(
         model_path=model_path,
         class_names=class_names,
-        device=device,
-        input_height=280,
-        input_width=280,
+        device=device
     )
 
     cap = cv2.VideoCapture(video_source)

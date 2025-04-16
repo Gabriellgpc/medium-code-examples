@@ -23,7 +23,7 @@ def convert_cxcywh_to_xyxy(x: np.ndarray) -> np.ndarray:
 
     Returns:
         np.ndarray: Array of shape (..., 4) where each row is [x_min, y_min, x_max, y_max].
-    """
+    """  # noqa: E501
     x_c, y_c, w, h = np.split(x, 4, axis=-1)
     x_min = x_c - 0.5 * np.clip(w, a_min=0.0, a_max=None)
     y_min = y_c - 0.5 * np.clip(h, a_min=0.0, a_max=None)
@@ -253,7 +253,7 @@ class RFDETRDetector:  # noqa: D101
         Returns:
             np.ndarray: The annotated image with detections drawn on it.
 
-        """
+        """  # noqa: E501
         if detections is None or len(detections) == 0:
             return image
 

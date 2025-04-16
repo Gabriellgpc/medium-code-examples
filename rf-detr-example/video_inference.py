@@ -14,15 +14,14 @@ from model import RFDETRDetector, load_class_names
 @click.option(
     "--video-source",
     "-v",
-    type=click.Path(exists=True),
-    required=True,
+    default="/dev/video0",
     help="Path to the video file or camera index",
 )
 @click.option(
     "--model-path",
     "-m",
     type=click.Path(exists=True),
-    required=True,
+    default=Path(__file__).parent / "output/ov_model/inference_model.xml",
     help="Path to the model file",
 )
 @click.option(

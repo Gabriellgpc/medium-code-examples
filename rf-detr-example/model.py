@@ -1,10 +1,12 @@
 """Base class for object detection models."""
 
+from pathlib import Path
+
 import cv2
-import loguru
 import numpy as np
 import openvino as ov
 import supervision as sv
+from loguru import logger
 
 
 def softmax(x: np.ndarray) -> np.ndarray:
@@ -29,6 +31,12 @@ def convert_cxcywh_to_xyxy(x: np.ndarray) -> np.ndarray:
     y_max = y_c + 0.5 * np.clip(h, a_min=0.0, a_max=None)
     return (x_min, y_min, x_max, y_max)
 
+def load_class_names(class_names_filepath: Path) -> list[str]:
+    with class_names_filepath.open("r") as file:
+        class_names = file.read().splitlines()
+    return class_names
+
+
 class RFDETRDetector:  # noqa: D101
 
     def __init__(
@@ -40,12 +48,9 @@ class RFDETRDetector:  # noqa: D101
         max_detections: int = 300,
         min_confidence: float = 0.5,
         nms_threshold: float = 0.7,
-        device="AUTO",
-        logger=None,
+        device="AUTO"
     ) -> None:
         self.model_path = model_path
-
-        self.logger = logger or loguru.logger
 
         self.class_names = class_names
         self.input_height = input_height
@@ -54,16 +59,6 @@ class RFDETRDetector:  # noqa: D101
         self.max_detections = max_detections
         self.min_confidence = min_confidence
         self.nms_threshold = nms_threshold
-
-        # random color pallet per class
-        # seed for reproducibility
-        rng = np.random.default_rng(42)
-        self.color_pallet = rng.integers(
-            0,
-            255,
-            size=(self.num_classes, 3),
-            dtype=np.uint8,
-        ).tolist()
 
         self.dot_annotator = sv.DotAnnotator()
         self.box_annotator = sv.BoxAnnotator()
@@ -74,26 +69,26 @@ class RFDETRDetector:  # noqa: D101
 
     def _load_model(self, device) -> None:
         """Load the model using onnxruntime."""
-        self.logger.info(f"Loading model from {self.model_path}")
+        logger.info(f"Loading model from {self.model_path}")
 
         self.core = ov.Core()
-        self.logger.info(f"Avaible Devices detected: {self.core.get_available_devices()}")
+        logger.info(f"Avaible Devices detected: {self.core.get_available_devices()}")
 
         # check if device is available, show a warning message and use CPU
         if device not in self.core.get_available_devices():
-            self.logger.warning(
+            logger.warning(
                 f"Device {device} not available, using CPU instead. "
                 "Please check the available devices.",
             )
             device = "CPU"
 
         self.compiled_model = self.core.compile_model(self.model_path, device)
-        self.logger.info(f"Model {self.compiled_model}")
+        logger.info(f"Model {self.compiled_model}")
         self.output_layer_dets = self.compiled_model.output(0)
         self.output_layer_labels = self.compiled_model.output(1)
 
-        self.logger.debug(f"Output layer: {self.output_layer_dets}")
-        self.logger.debug(f"Output layer: {self.output_layer_labels}")
+        logger.debug(f"Output layer: {self.output_layer_dets}")
+        logger.debug(f"Output layer: {self.output_layer_labels}")
 
 
     def _preprocess(self, image):
@@ -165,8 +160,6 @@ class RFDETRDetector:  # noqa: D101
             class_id = np.argmax(logits)
             confidence = softmax(logits)[class_id]
 
-            # When running in GPU mode,
-            # empty predictions in the output have class_id of -1
             if class_id < 0 or confidence < 0.0:
                 break
 
@@ -287,32 +280,4 @@ class RFDETRDetector:  # noqa: D101
             detections=detections,
         )
         return annotated_image  # noqa: RET504
-
-
-def main() -> None:
-    """Main function to run the object detection model."""
-    # Load the model
-    model_path = "model/rf_detr.onnx"
-    class_names = ["person", "bicycle", "car", "motorcycle", "airplane"]
-    detector = RFDETRDetector(
-        model_path=model_path,
-        class_names=class_names,
-        device="AUTO",
-    )
-
-    # Load an image
-    image = cv2.imread("image.jpg")
-    if image is None:
-        raise ValueError("Image not found or unable to load.")
-
-    # Perform inference
-    detections = detector(image)
-
-    # Draw detections on the image
-    annotated_image = detector.draw_detections(image, detections)
-
-    # Show the annotated image
-    cv2.imshow("Detections", annotated_image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
 

@@ -6,7 +6,9 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "colored>=2.3.0",
+    "fiftyone>=1.4.1",
     "loguru>=0.7.3",
+    "nncf>=2.16.0",
     "onnx>=1.17.0",
     "onnxruntime>=1.21.0",
     "openvino>=2025.1.0",

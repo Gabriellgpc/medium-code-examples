@@ -11,3 +11,4 @@
 - [Neural Network Compression Framework for enhanced OpenVINO™ inference](https://github.com/openvinotoolkit/nncf)
 - [OpenVINO](https://github.com/openvinotoolkit/openvino)
 - [RF-DETR](https://github.com/roboflow/rf-detr)
+- [NNCF:post_training_quantization](https://github.com/openvinotoolkit/nncf/blob/develop/examples/post_training_quantization/openvino/anomaly_stfpm_quantize_with_accuracy_control/main.py)

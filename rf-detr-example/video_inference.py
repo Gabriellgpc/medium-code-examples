@@ -31,13 +31,19 @@ from model import RFDETRDetector, load_class_names
     default="GPU",
     help="Device to use for inference",
 )
-def main(video_source: str, model_path: str, device: str) -> None:
+@click.option("--labelmap", "--labelmap-filepath", "-l",
+              type=click.Path(exists=True),
+              default=Path(__file__).parent / "coco_labelmap.txt",
+              help="Path to the label map file")
+def main(video_source: str,
+         model_path: str,
+         device: str,
+         labelmap_filepath:str) -> None:
     """Main function to run the object detection model."""
 
     # Load the model
     logger.info(f"Loading model from {model_path}")
-    class_names_filepath = Path(__file__).parent / "coco_labelmap.txt"
-    class_names = load_class_names(class_names_filepath)
+    class_names = load_class_names(labelmap_filepath)
     detector = RFDETRDetector(
         model_path=model_path,
         class_names=class_names,

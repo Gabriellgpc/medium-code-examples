@@ -69,10 +69,10 @@ class RFDETRDetector:  # noqa: D101
 
     def _load_model(self, device) -> None:
         """Load the model using onnxruntime."""
-        logger.info(f"Loading model from {self.model_path}")
+        logger.debug(f"Loading model from {self.model_path}")
 
         self.core = ov.Core()
-        logger.info(f"Avaible Devices detected: {self.core.get_available_devices()}")
+        logger.debug(f"Avaible Devices detected: {self.core.get_available_devices()}")
 
         # check if device is available, show a warning message and use CPU
         if device not in self.core.get_available_devices():
@@ -81,9 +81,13 @@ class RFDETRDetector:  # noqa: D101
                 "Please check the available devices.",
             )
             device = "CPU"
+        else:
+            logger.debug(
+                f"Device {device} is available, using it for inference.",
+            )
 
         self.compiled_model = self.core.compile_model(self.model_path, device)
-        logger.info(f"Model {self.compiled_model}")
+        logger.debug(f"Model {self.compiled_model}")
         self.output_layer_dets = self.compiled_model.output(0)
         self.output_layer_labels = self.compiled_model.output(1)
 
@@ -204,14 +208,6 @@ class RFDETRDetector:  # noqa: D101
         )
         return detections
 
-    def _apply_nms(self, detections: sv.Detections) -> sv.Detections:
-        """Apply non-maximum suppression to the detections."""
-        return (
-            detections.with_nms(threshold=self.nms_threshold)
-            if detections is not None
-            else None
-        )
-
     def __call__(self, image: np.ndarray) -> sv.Detections:
         """Perform inference on the given image and return detections.
 
@@ -229,8 +225,6 @@ class RFDETRDetector:  # noqa: D101
         prep_outputs = self._filter_by_confidence(**prep_outputs)
         # convert to sv.Detections
         detections = self._convert_to_sv_detections(**prep_outputs)
-        # Apply NMS
-        detections = self._apply_nms(detections)
         return detections
 
     def draw_detections(

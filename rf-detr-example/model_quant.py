@@ -24,6 +24,7 @@ class ImagesOnlyFolder(torch.utils.data.Dataset):
             image = self.transform(image)
         return image
 
+
 @click.command()
 @click.option(
     "--model_path",
@@ -68,24 +69,23 @@ def nncf_ov_quantize(model_path: str, dataset_path: str, output_path: str):
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ]
     val_dataset = ImagesOnlyFolder(
-        dataset_path,
-        transform=transforms.Compose(prep_transform)
+        dataset_path, transform=transforms.Compose(prep_transform)
     )
     logger.info(f"Loaded {len(val_dataset)} images from {dataset_path}")
 
-    dataset_loader = torch.utils.data.DataLoader(val_dataset,
-                                                 batch_size=1)
+    dataset_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1)
 
     # Step 2: Initialize NNCF Dataset
     calibration_dataset = nncf.Dataset(dataset_loader)
     # Step 3: Run the quantization pipeline
     quantized_model = nncf.quantize(model, calibration_dataset)
+
     # Step 4: Save the quantized model
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+
     logger.info(f"Saving quantized model to {output_path}")
     ov.save_model(quantized_model, str(output_path))
-
 
 if __name__ == "__main__":
     nncf_ov_quantize()

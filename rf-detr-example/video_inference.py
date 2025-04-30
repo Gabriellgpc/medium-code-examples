@@ -31,7 +31,7 @@ from model import RFDETRDetector, load_class_names
     default="GPU",
     help="Device to use for inference",
 )
-@click.option("--labelmap", "--labelmap-filepath", "-l",
+@click.option("--labelmap-filepath", "--labelmap", "-l",
               type=click.Path(exists=True),
               default=Path(__file__).parent / "coco_labelmap.txt",
               help="Path to the label map file")

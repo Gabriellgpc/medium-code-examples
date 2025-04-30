@@ -84,7 +84,7 @@ def nncf_ov_quantize(model_path: str, dataset_path: str, output_path: str):
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     logger.info(f"Saving quantized model to {output_path}")
-    ov.save_model(quantized_model, output_path, model_name="quantized_model")
+    ov.save_model(quantized_model, str(output_path))
 
 
 if __name__ == "__main__":

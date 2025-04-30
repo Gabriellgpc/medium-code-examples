@@ -5,6 +5,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 import openvino as ov
+import openvino.properties as props
+import openvino.properties.hint as hints
 import supervision as sv
 from loguru import logger
 
@@ -86,7 +88,15 @@ class RFDETRDetector:  # noqa: D101
                 f"Device {device} is available, using it for inference.",
             )
 
-        self.compiled_model = self.core.compile_model(self.model_path, device)
+        # Use cache model
+        path_to_cache_dir = Path(self.model_path).parent / "cache"
+        self.core.set_property({props.cache_dir: path_to_cache_dir})
+
+        config = {hints.performance_mode: hints.PerformanceMode.THROUGHPUT,
+                  hints.execution_mode: hints.ExecutionMode.PERFORMANCE}
+        self.compiled_model = self.core.compile_model(self.model_path,
+                                                      device,
+                                                      config)
         logger.debug(f"Model {self.compiled_model}")
         self.output_layer_dets = self.compiled_model.output(0)
         self.output_layer_labels = self.compiled_model.output(1)

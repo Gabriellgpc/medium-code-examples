@@ -9,6 +9,18 @@ from loguru import logger
 
 from model import RFDETRDetector, load_class_names
 
+def draw_fps(frame, fps):
+    """Draw FPS on the frame."""
+    cv2.putText(
+        frame,
+        f"FPS: {fps:.2f}",
+        (10, 30),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (0, 255, 0),
+        2,
+    )
+    return frame
 
 @click.command()
 @click.option(
@@ -58,24 +70,17 @@ def main(video_source: str,
     fps_ticker = sv.FPSMonitor(sample_size=int(video_fps))
     while True:
         success, frame = cap.read()
-        fps_ticker.tick()
+
         if not success:
             break
 
         detections = detector(frame)
+        fps_ticker.tick()
 
         annotated_frame = detector.draw_detections(frame, detections)
 
         # Draw FPS on the frame
-        cv2.putText(
-            annotated_frame,
-            f"FPS: {fps_ticker.fps:.2f}",
-            (10, 30),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (0, 255, 0),
-            2,
-        )
+        annotated_frame = draw_fps(annotated_frame, fps_ticker.fps)
 
         cv2.imshow("Webcam", annotated_frame)
         if cv2.waitKey(1) & 0xFF == ord("q"):

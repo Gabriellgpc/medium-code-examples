@@ -34,6 +34,11 @@ def export_model(output_dir: Path) -> None:
         ov_model_dir.mkdir(exist_ok=True, parents=True)
 
         ov_model = ov.convert_model(onnx_path, verbose=True)
+        #TODO 4. Embed the torchvision preocessing into OpenVINO model
+        # ov_model = PreprocessConverter.from_torchvision(
+        #     model=ov_model, transform=preprocess_pipeline, input_example=Image.fromarray(test_input.astype("uint8"), "RGB")  # noqa: E501
+        # )
+
         logger.info("Applying pruning transformation")
         ov.save_model(ov_model, Path(ov_model_dir) / "inference_model.xml")
 

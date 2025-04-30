@@ -164,7 +164,7 @@ class RFDETRDetector:  # noqa: D101
         raw_labels = predictions[self.output_layer_labels][0]
 
         for i, det in enumerate(raw_dets):
-            if i == self.max_detections:
+            if i >= self.max_detections:
                 break
 
             # Convert cxcywh to xyxy

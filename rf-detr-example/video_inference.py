@@ -61,8 +61,9 @@ def main(video_source: str,
         model_path=model_path,
         class_names=class_names,
         device=device,
-        min_confidence=0.4,
+        min_confidence=0.3,
     )
+
 
     cap = cv2.VideoCapture(video_source)
     if not cap.isOpened():
@@ -70,6 +71,10 @@ def main(video_source: str,
 
     video_fps = cap.get(cv2.CAP_PROP_FPS)
     fps_ticker = sv.FPSMonitor(sample_size=int(video_fps))
+
+    tracker = sv.ByteTrack(frame_rate=video_fps)
+    smoother = sv.DetectionsSmoother()
+
     while True:
         success, frame = cap.read()
 
@@ -79,6 +84,8 @@ def main(video_source: str,
         detections = detector(frame)
         fps_ticker.tick()
 
+        detections = tracker.update_with_detections(detections)
+        detections = smoother.update_with_detections(detections)
         annotated_frame = detector.draw_detections(frame, detections)
 
         # Draw FPS on the frame

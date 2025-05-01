@@ -106,12 +106,18 @@ class RFDETRDetector:  # noqa: D101
 
 
     def _preprocess(self, image):
+        """Preprocess the image for the model.
+        Args:
+            image (numpy.ndarray): The input image for inference.
+        Returns:
+            numpy.ndarray: The preprocessed image ready for model inference.
+        """
         mean = np.array([0.485, 0.456, 0.406])
         std  = np.array([0.229, 0.224, 0.225])
         model_input = cv2.resize(
             image,
             (self.input_width, self.input_height),
-            interpolation=cv2.INTER_CUBIC,
+            interpolation=cv2.INTER_AREA,
         )
         # Convert to RGB
         model_input = cv2.cvtColor(model_input, cv2.COLOR_BGR2RGB)
@@ -235,7 +241,8 @@ class RFDETRDetector:  # noqa: D101
         prep_outputs = self._filter_by_confidence(**prep_outputs)
         # convert to sv.Detections
         detections = self._convert_to_sv_detections(**prep_outputs)
-        return detections
+        # Apply NMS and return detections
+        return detections.with_nms(self.nms_threshold)
 
     def draw_detections(
         self,

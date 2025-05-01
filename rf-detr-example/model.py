@@ -111,7 +111,7 @@ class RFDETRDetector:  # noqa: D101
         model_input = cv2.resize(
             image,
             (self.input_width, self.input_height),
-            interpolation=cv2.INTER_AREA,
+            interpolation=cv2.INTER_CUBIC,
         )
         # Convert to RGB
         model_input = cv2.cvtColor(model_input, cv2.COLOR_BGR2RGB)

@@ -9,6 +9,7 @@ from loguru import logger
 
 from model import RFDETRDetector, load_class_names
 
+
 def draw_fps(frame, fps):
     """Draw FPS on the frame."""
     cv2.putText(
@@ -59,7 +60,8 @@ def main(video_source: str,
     detector = RFDETRDetector(
         model_path=model_path,
         class_names=class_names,
-        device=device
+        device=device,
+        min_confidence=0.4,
     )
 
     cap = cv2.VideoCapture(video_source)

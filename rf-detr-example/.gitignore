@@ -5,3 +5,7 @@ output
 *.pth
 *error*
 *.jpg
+
+*.bin
+*.xml
+*.blob

@@ -5,9 +5,9 @@ from pathlib import Path
 import click
 import cv2
 import supervision as sv
-from loguru import logger
+from rfdetr import RFDETRBase
 
-from model import RFDETRDetector, load_class_names
+from model import load_class_names
 
 
 def draw_fps(frame, fps):
@@ -23,6 +23,7 @@ def draw_fps(frame, fps):
     )
     return frame
 
+
 @click.command()
 @click.option(
     "--video-source",
@@ -31,54 +32,35 @@ def draw_fps(frame, fps):
     help="Path to the video file or camera index",
 )
 @click.option(
-    "--model-path",
-    "-m",
-    type=click.Path(exists=True),
-    default=Path(__file__).parent / "output/ov_model/inference_model.xml",
-    help="Path to the model file",
-)
-@click.option(
     "--device",
     "-d",
-    type=click.Choice(["AUTO", "CPU", "GPU"]),
-    default="GPU",
+    type=click.Choice(["cpu", "cuda"]),
+    default="cuda",
     help="Device to use for inference",
 )
-@click.option("--labelmap-filepath", "--labelmap", "-l",
-              type=click.Path(exists=True),
-              default=Path(__file__).parent / "coco_labelmap.txt",
-              help="Path to the label map file")
-def main(video_source: str,
-         model_path: str,
-         device: str,
-         labelmap_filepath:str) -> None:
+@click.option(
+    "--labelmap-filepath",
+    "--labelmap",
+    "-l",
+    type=click.Path(exists=True),
+    default=Path(__file__).parent / "coco_labelmap.txt",
+    help="Path to the label map file",
+)
+def main(
+    video_source: str, device: str, labelmap_filepath: str
+) -> None:
     """Main function to run the object detection model."""
 
     # Load the model
-    logger.info(f"Loading model from {model_path}")
     class_names = load_class_names(labelmap_filepath)
-    detector = RFDETRDetector(
-        model_path=model_path,
-        class_names=class_names,
-        device=device,
-        min_confidence=0.4,
-    )
+    detector = RFDETRBase(resolution=280, device=device)
 
     cap = cv2.VideoCapture(video_source)
     if not cap.isOpened():
         raise ValueError("Video source not found or unable to open.")
 
-    output_video_path = Path(video_source).with_name(
-        f"{Path(video_source).stem}_output.mp4"
-    )
-
     video_fps = cap.get(cv2.CAP_PROP_FPS)
     fps_ticker = sv.FPSMonitor(sample_size=int(video_fps))
-
-    video_writter = cv2.VideoWriter(str(output_video_path),
-                                    cv2.VideoWriter_fourcc(*'mp4v'),
-                                    video_fps,
-                                    (int(cap.get(3)), int(cap.get(4))))
 
     tracker = sv.ByteTrack(frame_rate=video_fps)
     smoother = sv.DetectionsSmoother()
@@ -89,25 +71,33 @@ def main(video_source: str,
         if not success:
             break
 
-        detections = detector(frame)
+        detections = detector.predict(frame, threshold=0.4)
         fps_ticker.tick()
 
         detections = tracker.update_with_detections(detections)
         detections = smoother.update_with_detections(detections)
-        annotated_frame = detector.draw_detections(frame, detections)
+
+        labels = [
+            f"{class_names[class_id]} {confidence:.2f}"
+            for class_id, confidence in zip(
+                detections.class_id, detections.confidence, strict=False
+            )
+        ]
+
+        annotated_frame = frame.copy()
+        annotated_frame = sv.BoxAnnotator().annotate(annotated_frame, detections)
+        annotated_frame = sv.LabelAnnotator().annotate(
+            annotated_frame, detections, labels
+        )
 
         # Draw FPS on the frame
         annotated_frame = draw_fps(annotated_frame, fps_ticker.fps)
-
-        # Write the annotated frame to the output video
-        video_writter.write(annotated_frame)
 
         cv2.imshow("Webcam", annotated_frame)
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
     cap.release()
-    video_writter.release()
     cv2.destroyAllWindows()
 
 

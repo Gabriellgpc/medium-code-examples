@@ -64,7 +64,7 @@ class RFDETRDetector:  # noqa: D101
 
         self.dot_annotator = sv.DotAnnotator()
         self.box_annotator = sv.BoxAnnotator()
-        self.box_corner_annotator = sv.BoxCornerAnnotator(thickness=12)
+        self.box_corner_annotator = sv.BoxCornerAnnotator(thickness=8)
         self.label_annotator = sv.LabelAnnotator()
 
         self._load_model(device)

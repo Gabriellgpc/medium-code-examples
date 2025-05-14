@@ -59,11 +59,20 @@ def main(
     if not cap.isOpened():
         raise ValueError("Video source not found or unable to open.")
 
+    output_video_path = Path(video_source).with_name(
+        f"{Path(video_source).stem}_{device}_torch_output.mp4"
+    )
+
     video_fps = cap.get(cv2.CAP_PROP_FPS)
     fps_ticker = sv.FPSMonitor(sample_size=int(video_fps))
 
     tracker = sv.ByteTrack(frame_rate=video_fps)
     smoother = sv.DetectionsSmoother()
+
+    video_writter = cv2.VideoWriter(str(output_video_path),
+                                    cv2.VideoWriter_fourcc(*'mp4v'),
+                                    video_fps,
+                                    (int(cap.get(3)), int(cap.get(4))))
 
     while True:
         success, frame = cap.read()
@@ -93,11 +102,15 @@ def main(
         # Draw FPS on the frame
         annotated_frame = draw_fps(annotated_frame, fps_ticker.fps)
 
+        # Write the annotated frame to the output video
+        video_writter.write(annotated_frame)
+
         cv2.imshow("Webcam", annotated_frame)
         if cv2.waitKey(1) & 0xFF == ord("q"):
             break
 
     cap.release()
+    video_writter.release()
     cv2.destroyAllWindows()
 
 

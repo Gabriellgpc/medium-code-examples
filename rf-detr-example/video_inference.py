@@ -69,7 +69,7 @@ def main(video_source: str,
         raise ValueError("Video source not found or unable to open.")
 
     output_video_path = Path(video_source).with_name(
-        f"{Path(video_source).stem}_output.mp4"
+        f"{Path(video_source).stem}_{device}_openvino_output.mp4"
     )
 
     video_fps = cap.get(cv2.CAP_PROP_FPS)

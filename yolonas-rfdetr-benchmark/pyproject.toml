@@ -1,0 +1,46 @@
+[project]
+name = "yolonas-rfdetr-benchmark"
+version = "0.1.0"
+description = "Benchmark comparing RF-DETR and YOLO-NAS models on COCO validation"
+readme = "README.md"
+authors = [
+    { name = "Luis Condados", email = "condadoslgpc@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "rfdetr>=1.5.0,<1.6",
+    "supervision>=0.25.1",
+    "fiftyone>=1.4.1",
+    "click",
+    "tabulate",
+    "loguru",
+    "torch",
+    "torchvision",
+    "openvino>=2024.0",
+    "nncf",
+    "onnx",
+    "onnxscript>=0.6.2",
+    "setuptools<82",
+    "matplotlib",
+    "modern-yolonas",
+    "detectors",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv]
+environments = ["python_version >= '3.13' and sys_platform == 'linux' and platform_machine == 'x86_64'"]
+override-dependencies = ["transformers>=4.40,<5", "tokenizers>=0.20", "huggingface-hub>=0.26,<1"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+torchvision = { index = "pytorch-cu130" }
+modern-yolonas = { path = "../../modern-yolonas", editable = true }
+detectors = { path = "../../detectors", editable = true }

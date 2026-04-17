@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+
+# Model weights
+*.pth
+*.bin
+
+# Output
+output/
+models/
+models_finetuned/
+runs/
+datasets/
+logs/
+
+# Data
+data/
+coco-2017-images/
+fiftyone/
+
+# IDE
+.idea/
+.vscode/
+*.swp

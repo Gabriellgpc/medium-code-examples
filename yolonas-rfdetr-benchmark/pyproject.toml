@@ -8,7 +8,7 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
-    "rfdetr>=1.5.0,<1.6",
+    "rfdetr[train]>=1.6.4,<1.7",
     "supervision>=0.25.1",
     "fiftyone>=1.4.1",
     "click",
@@ -23,7 +23,11 @@ dependencies = [
     "setuptools<82",
     "matplotlib",
     "modern-yolonas",
-    "detectors",
+    "nvidia-cudnn-cu12>=9.21.0.82",
+    "nvidia-cusparselt-cu12>=0.8.1",
+    "nvidia-cuda-cccl-cu12>=12.9.27",
+    "nvidia-nccl-cu12>=2.29.7",
+    "nvidia-nvshmem-cu12>=3.6.5",
 ]
 
 [build-system]
@@ -37,10 +41,9 @@ explicit = true
 
 [tool.uv]
 environments = ["python_version >= '3.13' and sys_platform == 'linux' and platform_machine == 'x86_64'"]
-override-dependencies = ["transformers>=4.40,<5", "tokenizers>=0.20", "huggingface-hub>=0.26,<1"]
+override-dependencies = ["tokenizers>=0.20"]
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu130" }
 torchvision = { index = "pytorch-cu130" }
 modern-yolonas = { path = "../../modern-yolonas", editable = true }
-detectors = { path = "../../detectors", editable = true }

@@ -37,28 +37,34 @@ COCO_NAMES = {
     77: "teddy bear", 78: "hair drier", 79: "toothbrush",
 }
 
-# RF-DETR class names (COCO 91-class mapping, loaded once at startup)
-_rfdetr_class_names = None
-
-
-def get_rfdetr_class_names() -> dict:
-    """Load RF-DETR class name mapping from the model."""
-    global _rfdetr_class_names
-    if _rfdetr_class_names is None:
-        from rfdetr import RFDETRNano
-
-        model = RFDETRNano(resolution=RESOLUTION, device="cpu")
-        _rfdetr_class_names = dict(model.class_names)
-        del model
-    return _rfdetr_class_names
+# RF-DETR outputs raw COCO-91 class_ids (pretrained head has 91 slots with gaps)
+# We map 91-index -> COCO-80 name so predictions align with FiftyOne ground-truth labels.
+COCO_91_TO_NAME = {
+    1: "person", 2: "bicycle", 3: "car", 4: "motorcycle", 5: "airplane", 6: "bus",
+    7: "train", 8: "truck", 9: "boat", 10: "traffic light", 11: "fire hydrant",
+    13: "stop sign", 14: "parking meter", 15: "bench", 16: "bird", 17: "cat",
+    18: "dog", 19: "horse", 20: "sheep", 21: "cow", 22: "elephant", 23: "bear",
+    24: "zebra", 25: "giraffe", 27: "backpack", 28: "umbrella", 31: "handbag",
+    32: "tie", 33: "suitcase", 34: "frisbee", 35: "skis", 36: "snowboard",
+    37: "sports ball", 38: "kite", 39: "baseball bat", 40: "baseball glove",
+    41: "skateboard", 42: "surfboard", 43: "tennis racket", 44: "bottle",
+    46: "wine glass", 47: "cup", 48: "fork", 49: "knife", 50: "spoon", 51: "bowl",
+    52: "banana", 53: "apple", 54: "sandwich", 55: "orange", 56: "broccoli",
+    57: "carrot", 58: "hot dog", 59: "pizza", 60: "donut", 61: "cake", 62: "chair",
+    63: "couch", 64: "potted plant", 65: "bed", 67: "dining table", 70: "toilet",
+    72: "tv", 73: "laptop", 74: "mouse", 75: "remote", 76: "keyboard",
+    77: "cell phone", 78: "microwave", 79: "oven", 80: "toaster", 81: "sink",
+    82: "refrigerator", 84: "book", 85: "clock", 86: "vase", 87: "scissors",
+    88: "teddy bear", 89: "hair drier", 90: "toothbrush",
+}
 
 
 # --- Preprocessing ---
 
 
 def rfdetr_preprocess(image_path: str) -> np.ndarray:
-    """Preprocess for RF-DETR: resize + ImageNet normalization."""
-    img = Image.open(image_path).convert("RGB")
+    """Preprocess for RF-DETR: RGB + resize + ImageNet normalization."""
+    img = Image.open(image_path).convert("RGB")  # handles grayscale in COCO val
     tensor = F.to_tensor(img)
     tensor = F.normalize(tensor, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     tensor = F.resize(tensor, (RESOLUTION, RESOLUTION))
@@ -177,19 +183,30 @@ def xyxy_to_fiftyone(
     img_w: int,
     img_h: int,
 ) -> fo.Detections:
-    """Convert xyxy detections to fo.Detections."""
+    """Convert xyxy detections to fo.Detections.
+
+    Clips to image bounds and drops degenerate (<=0 area) boxes so FiftyOne's
+    rtree-based IoU computation doesn't choke on negative-width regions.
+    """
     fo_dets = []
     for i in range(len(boxes)):
+        label = class_names.get(int(class_ids[i]))
+        if label is None:
+            continue  # unmapped class (e.g. RF-DETR "N/A" slot in COCO-91)
         x1, y1, x2, y2 = boxes[i]
+        # Clip to image bounds
+        x1 = max(0.0, min(float(x1), img_w - 1.0))
+        y1 = max(0.0, min(float(y1), img_h - 1.0))
+        x2 = max(0.0, min(float(x2), float(img_w)))
+        y2 = max(0.0, min(float(y2), float(img_h)))
+        w = x2 - x1
+        h = y2 - y1
+        if w <= 0 or h <= 0:
+            continue  # degenerate box
         fo_dets.append(
             fo.Detection(
-                label=class_names.get(int(class_ids[i]), str(int(class_ids[i]))),
-                bounding_box=[
-                    float(x1 / img_w),
-                    float(y1 / img_h),
-                    float((x2 - x1) / img_w),
-                    float((y2 - y1) / img_h),
-                ],
+                label=label,
+                bounding_box=[x1 / img_w, y1 / img_h, w / img_w, h / img_h],
                 confidence=float(scores[i]),
             )
         )
@@ -215,8 +232,8 @@ MODEL_CONFIGS = {
 
 
 @click.command()
-@click.option("--max-samples", "-n", default=100, type=int, help="Number of COCO val samples")
-@click.option("--threshold", "-t", default=0.5, type=float, help="Confidence threshold")
+@click.option("--max-samples", "-n", default=500, type=int, help="Number of COCO val samples")
+@click.option("--threshold", "-t", default=0.05, type=float, help="Confidence threshold (low for full mAP PR-curve coverage)")
 @click.option("--warmup", "-w", default=5, type=int, help="Warmup inferences to discard")
 @click.option("--device", "-d", default="GPU", help="OpenVINO device (GPU for iGPU, CPU)")
 def main(max_samples: int, threshold: float, warmup: int, device: str) -> None:
@@ -227,9 +244,6 @@ def main(max_samples: int, threshold: float, warmup: int, device: str) -> None:
     if device not in available:
         logger.error(f"Device '{device}' not available. Choose from: {available}")
         return
-
-    # Load RF-DETR class names
-    rfdetr_names = get_rfdetr_class_names()
 
     # Load COCO validation
     logger.info(f"Loading COCO-2017 validation ({max_samples} samples)")
@@ -297,7 +311,7 @@ def main(max_samples: int, threshold: float, warmup: int, device: str) -> None:
                     boxes, scores, class_ids = rfdetr_postprocess(
                         outputs, img_w, img_h, threshold
                     )
-                    class_names = rfdetr_names
+                    class_names = COCO_91_TO_NAME
                 else:
                     boxes, scores, class_ids = yolonas_postprocess(
                         outputs,

@@ -10,6 +10,7 @@ import numpy as np
 import torch
 from loguru import logger
 from modern_yolonas import Detector
+from PIL import Image
 from rfdetr import RFDETRNano, RFDETRSmall
 from tabulate import tabulate
 
@@ -33,18 +34,40 @@ COCO_NAMES = {
     77: "teddy bear", 78: "hair drier", 79: "toothbrush",
 }
 
-MODEL_CONFIGS = {
-    "rfdetr_nano_384": {
-        "display": "RFDETRNano 256",
-        "factory": lambda device: RFDETRNano(resolution=256, device=device),
-        "type": "rfdetr",
-    },
-    "yolonas_s": {
-        "display": "YOLO-NAS-S 256",
-        "factory": lambda device: Detector("yolo_nas_s", device=device, input_size=256),
-        "type": "yolonas",
-    },
+# RF-DETR 1.6.x predict() returns class_id in the raw COCO-91 space
+# (pretrained DETR head has 91 output slots with gaps). We map 91 -> COCO-80 name.
+COCO_91_TO_NAME = {
+    1: "person", 2: "bicycle", 3: "car", 4: "motorcycle", 5: "airplane", 6: "bus",
+    7: "train", 8: "truck", 9: "boat", 10: "traffic light", 11: "fire hydrant",
+    13: "stop sign", 14: "parking meter", 15: "bench", 16: "bird", 17: "cat",
+    18: "dog", 19: "horse", 20: "sheep", 21: "cow", 22: "elephant", 23: "bear",
+    24: "zebra", 25: "giraffe", 27: "backpack", 28: "umbrella", 31: "handbag",
+    32: "tie", 33: "suitcase", 34: "frisbee", 35: "skis", 36: "snowboard",
+    37: "sports ball", 38: "kite", 39: "baseball bat", 40: "baseball glove",
+    41: "skateboard", 42: "surfboard", 43: "tennis racket", 44: "bottle",
+    46: "wine glass", 47: "cup", 48: "fork", 49: "knife", 50: "spoon", 51: "bowl",
+    52: "banana", 53: "apple", 54: "sandwich", 55: "orange", 56: "broccoli",
+    57: "carrot", 58: "hot dog", 59: "pizza", 60: "donut", 61: "cake", 62: "chair",
+    63: "couch", 64: "potted plant", 65: "bed", 67: "dining table", 70: "toilet",
+    72: "tv", 73: "laptop", 74: "mouse", 75: "remote", 76: "keyboard",
+    77: "cell phone", 78: "microwave", 79: "oven", 80: "toaster", 81: "sink",
+    82: "refrigerator", 84: "book", 85: "clock", 86: "vase", 87: "scissors",
+    88: "teddy bear", 89: "hair drier", 90: "toothbrush",
 }
+
+def build_model_configs(resolution: int) -> dict:
+    return {
+        "rfdetr_nano": {
+            "display": f"RFDETRNano {resolution}",
+            "factory": lambda device: RFDETRNano(resolution=resolution, device=device),
+            "type": "rfdetr",
+        },
+        "yolonas_s": {
+            "display": f"YOLO-NAS-S {resolution}",
+            "factory": lambda device: Detector("yolo_nas_s", device=device, input_size=resolution),
+            "type": "yolonas",
+        },
+    }
 
 
 def xyxy_to_fiftyone(xyxy: np.ndarray, img_w: int, img_h: int) -> list[list[float]]:
@@ -61,9 +84,15 @@ def xyxy_to_fiftyone(xyxy: np.ndarray, img_w: int, img_h: int) -> list[list[floa
 
 
 def run_rfdetr(model, image_path: str, threshold: float):
-    """Run RF-DETR and return (detections_sv, class_names_dict)."""
-    detections = model.predict(image_path, threshold=threshold)
-    return detections, model.class_names
+    """Run RF-DETR and return (detections_sv,).
+
+    class_names intentionally omitted — we use COCO_91_TO_NAME in to_fo_detections
+    to guarantee identical label space for both RF-DETR and YOLO-NAS mAP eval.
+    Loads via PIL to guarantee 3-channel RGB (some COCO val images are grayscale).
+    """
+    img = np.array(Image.open(image_path).convert("RGB"))
+    detections = model.predict(img, threshold=threshold)
+    return (detections,)
 
 
 def run_yolonas(model, image_path: str, threshold: float):
@@ -82,11 +111,14 @@ def to_fo_detections(
     fo_dets = []
 
     if model_type == "rfdetr":
-        detections, class_names = raw_output
+        (detections,) = raw_output
         bboxes = xyxy_to_fiftyone(detections.xyxy, img_w, img_h)
         for bbox, cid, conf in zip(bboxes, detections.class_id, detections.confidence):
+            label = COCO_91_TO_NAME.get(int(cid))
+            if label is None:
+                continue
             fo_dets.append(fo.Detection(
-                label=class_names[int(cid)],
+                label=label,
                 bounding_box=bbox,
                 confidence=float(conf),
             ))
@@ -104,11 +136,13 @@ def to_fo_detections(
 
 
 @click.command()
-@click.option("--max-samples", "-n", default=100, type=int, help="Number of COCO val samples")
-@click.option("--threshold", "-t", default=0.5, type=float, help="Confidence threshold")
+@click.option("--max-samples", "-n", default=500, type=int, help="Number of COCO val samples")
+@click.option("--threshold", "-t", default=0.05, type=float, help="Confidence threshold (low for proper mAP PR-curve coverage)")
 @click.option("--warmup", "-w", default=5, type=int, help="Warmup inferences to discard")
 @click.option("--devices", default="cpu,cuda", help="Comma-separated devices to benchmark")
-def main(max_samples: int, threshold: float, warmup: int, devices: str) -> None:
+@click.option("--resolution", "-r", default=256, type=int, help="Input resolution (square)")
+def main(max_samples: int, threshold: float, warmup: int, devices: str, resolution: int) -> None:
+    model_configs = build_model_configs(resolution)
     device_list = [d.strip() for d in devices.split(",")]
 
     # Filter out cuda if not available
@@ -132,7 +166,7 @@ def main(max_samples: int, threshold: float, warmup: int, devices: str) -> None:
     results_table = []
 
     for device in device_list:
-        for model_key, config in MODEL_CONFIGS.items():
+        for model_key, config in model_configs.items():
             field_name = f"{model_key}_{device}"
             logger.info(f"Benchmarking {config['display']} on {device}")
 

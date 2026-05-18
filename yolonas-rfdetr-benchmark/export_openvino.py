@@ -43,29 +43,19 @@ def yolonas_preprocess(image_path: str) -> np.ndarray:
 
 
 def export_rfdetr_onnx(output_path: Path) -> None:
-    """Export RFDETRNano to ONNX via manual torch.onnx.export (bypasses div-by-14 check)."""
+    """Export RFDETRNano to ONNX via rfdetr 1.6.x's built-in exporter."""
     from rfdetr import RFDETRNano
 
     logger.info("Exporting RFDETRNano to ONNX...")
-    model = RFDETRNano(resolution=RESOLUTION, device="cpu")
-
-    # Access underlying LWDETR and switch to export mode
-    torch_model = model.model.model
-    torch_model.eval()
-    torch_model.export()
-
-    dummy_input = torch.randn(1, 3, RESOLUTION, RESOLUTION)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    torch.onnx.export(
-        torch_model,
-        dummy_input,
-        str(output_path),
-        input_names=["input"],
-        output_names=["dets", "labels"],
-        opset_version=17,
-        dynamo=False,
-    )
+    model = RFDETRNano(resolution=RESOLUTION, device="cpu")
+    model.export(output_dir=str(output_path.parent), opset_version=17, verbose=False)
+
+    # rfdetr writes to "inference_model.onnx" — rename to our canonical "model.onnx"
+    produced = output_path.parent / "inference_model.onnx"
+    if produced.exists() and produced != output_path:
+        shutil.move(str(produced), str(output_path))
 
     del model
     logger.info(f"  Saved to {output_path}")

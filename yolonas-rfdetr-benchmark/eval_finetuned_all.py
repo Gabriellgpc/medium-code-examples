@@ -147,7 +147,7 @@ def _postprocess(pred_bboxes, pred_scores, scale, pad_left, pad_top, threshold):
 
 
 @click.command()
-@click.option("--threshold", "-t", default=0.25, type=float, help="Confidence threshold")
+@click.option("--threshold", "-t", default=0.05, type=float, help="Confidence threshold (low for full mAP PR-curve coverage)")
 @click.option("--device", "-d", default="cuda", help="Device")
 def main(threshold: float, device: str) -> None:
     if device == "cuda" and not torch.cuda.is_available():

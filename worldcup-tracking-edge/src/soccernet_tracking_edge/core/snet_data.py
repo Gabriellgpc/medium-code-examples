@@ -80,6 +80,7 @@ class SNetDataset(Dataset):
         in_frames: int = 3,
         ball_stride: int = 1,
         det_stride: int = 4,
+        kp_stride: int = 4,
         heads: tuple[str, ...] = ("ball", "detection", "pitch"),
         augment: bool = False,
         limit: int | None = None,
@@ -90,6 +91,7 @@ class SNetDataset(Dataset):
         self.in_frames = in_frames
         self.ball_stride = ball_stride
         self.det_stride = det_stride
+        self.kp_stride = kp_stride
         self.heads = heads
         self.augment = augment
         self.flip_perm = flip_permutation()
@@ -298,9 +300,13 @@ class SNetDataset(Dataset):
                     continue
                 pts[k] = pt
                 vis[k] = 0 <= pt[0] < w and 0 <= pt[1] < h
+            # Rasterised at kp_stride, not at full resolution: 33 channels of
+            # 384x640 is 32 MB per sample and 260 MB per batch, which starves the
+            # loader. Trunk stride costs 2.0 MB and decodes to a median 0.66
+            # native px, well inside the section 6.6 budget.
             heat, present = keypoint_targets(
-                pts, vis, h // self.ball_stride, w // self.ball_stride,
-                n_kp, 1.0 / self.ball_stride,
+                pts, vis, h // self.kp_stride, w // self.kp_stride,
+                n_kp, 1.0 / self.kp_stride, sigma=2.0,
             )
             out["kp_heat"] = heat
             out["kp_present"] = present

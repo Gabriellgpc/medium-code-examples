@@ -39,16 +39,10 @@ from soccernet_tracking_edge.core.snet_model import SNetConfig, SNetModel  # noq
 # but pays a thin decoder inside the heads to get the resolution back — the whole
 # question of this sweep is whether that third family exists at a usable latency.
 CONFIGS = [
+    ("FINAL 384x640 s4 w18 up4", 4, 384, 640, 18, 4),
+    ("final w32              ", 4, 384, 640, 32, 4),
     ("wasb  384x640 s1 w18 up1", 1, 384, 640, 18, 1),
-    ("wasb  288x512 s1 w18 up1", 1, 288, 512, 18, 1),
-    ("coarse 384x640 s2 w18 up1", 2, 384, 640, 18, 1),
     ("coarse 384x640 s4 w18 up1", 4, 384, 640, 18, 1),
-    ("dec   384x640 s2 w18 up2", 2, 384, 640, 18, 2),
-    ("dec   384x640 s4 w18 up2", 4, 384, 640, 18, 2),
-    ("dec   384x640 s4 w18 up4", 4, 384, 640, 18, 4),
-    ("dec   384x640 s4 w32 up4", 4, 384, 640, 32, 4),
-    ("dec   288x512 s2 w18 up2", 2, 288, 512, 18, 2),
-    ("dec   512x896 s4 w18 up4", 4, 512, 896, 18, 4),
 ]
 
 # Native pixels per output pixel, for a 1920x1080 source. This is what decides

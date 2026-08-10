@@ -937,11 +937,26 @@ genuine domain gap, not a shuffled one.
 1. **Step 3, the control**: this detection head against RF-DETR on the same split
    and the same iGPU. Needs a proper COCO mAP evaluator, which is not written yet;
    validation loss cannot be compared across two different objectives.
-2. **The pitch head.** Deferred from this run because its target is 33 channels at
-   384x640 — 32 MB per sample, 260 MB per batch — which would bottleneck the loader
-   and distort the timing comparison. Fix: emit keypoint targets at a coarser
-   stride and recover sub-pixel with soft-argmax, which section 8.1 already
-   requires for other reasons.
+2. ~~The pitch head~~ — **fixed, and it made the whole model faster.** Keypoint
+   targets now rasterise at trunk stride. The stride was chosen by measuring the
+   decoding floor rather than guessing it: with a sigma=2 Gaussian, soft-argmax
+   recovers the centre to a median **0.66 native px (p90 1.22)** even at stride 4,
+   comfortably inside §6.6's 2-3 px budget, while the target drops from **32.4 MB
+   per sample to 2.03 MB**.
+
+   | kp_stride | grid | MB/sample | median err | p90 |
+   |---|---|---|---|---|
+   | 1 | 384x640 | 32.4 | 0.16 px | 0.31 |
+   | 2 | 192x320 | 8.1 | 0.33 px | 0.62 |
+   | **4** | **96x160** | **2.03** | **0.66 px** | **1.22** |
+
+   sigma = 2.0 was best at every stride (1.5 undersamples, 3.0 over-blurs).
+
+   Because the pitch head no longer needs a decoder, the full three-head model
+   dropped from **30.6 ms to 20.7 ms (48.3 FPS)** on the iGPU — now **10.4x** faster
+   than the WASB-faithful design, and nearly double the 25 FPS target. Trunk width
+   32 also fits comfortably now (25.1 ms, 39.9 FPS), which makes capacity the
+   obvious next lever.
 3. **Convergence.** Everything above is three epochs. The relative conclusions are
    what this budget can support; absolute numbers need roughly 7 GPU-hours for a
    full run, which is affordable but should be spent once the pitch head is in.

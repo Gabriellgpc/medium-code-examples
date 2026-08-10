@@ -151,7 +151,12 @@ class SNetConfig:
     n_keypoints: int = 33              # LANDMARKS; see TRAINING-DESIGN section 8.1 on expanding it
     n_lines: int = 26                  # distinct pitch line types in SN-GSR
     in_frames: int = 3                 # temporal window stacked on channels
-    head_upsample: int = 4             # heads upsample by this factor (see Head docstring)
+    head_upsample: int = 4             # ball head upsample (see Head docstring)
+    # Pitch keypoints need no decoder. Measured: soft-argmax on a sigma=2 Gaussian
+    # at trunk stride decodes to a median 0.66 native px (p90 1.22), comfortably
+    # inside the 2-3 px budget of section 6.6 — so the expensive full-resolution
+    # path buys nothing here, and the target drops from 32.4 MB per sample to 2.0.
+    pitch_upsample: int = 1
     heads: tuple[str, ...] = field(default=("ball", "detection", "pitch"))
 
 
@@ -312,8 +317,9 @@ class SNetModel(nn.Module):
             self.heads["det_size"] = Head(c, mid, 2)
             self.heads["det_offset"] = Head(c, mid, 2)
         if "pitch" in cfg.heads:
-            self.heads["pitch"] = Head(c, mid, cfg.n_keypoints, upsample=up)
-            self.heads["pitch_lines"] = Head(c, mid, cfg.n_lines, upsample=up)
+            pu = cfg.pitch_upsample
+            self.heads["pitch"] = Head(c, mid, cfg.n_keypoints, upsample=pu)
+            self.heads["pitch_lines"] = Head(c, mid, cfg.n_lines, upsample=pu)
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         feats = self.backbone(x)

@@ -12,6 +12,46 @@
   "note": "random weights; this measures architecture cost, not accuracy",
   "results": [
     {
+      "config": "FINAL 384x640 s4 w18 up4",
+      "stem_stride": 4,
+      "input": [
+        384,
+        640
+      ],
+      "trunk_width": 18,
+      "head_upsample": 4,
+      "params_m": 2.34,
+      "output_hw": [
+        384,
+        640
+      ],
+      "median_ms": 20.72,
+      "p10_ms": 19.37,
+      "p90_ms": 24.01,
+      "fps": 48.27,
+      "native_px_per_output_px": 3.0
+    },
+    {
+      "config": "final w32              ",
+      "stem_stride": 4,
+      "input": [
+        384,
+        640
+      ],
+      "trunk_width": 32,
+      "head_upsample": 4,
+      "params_m": 6.46,
+      "output_hw": [
+        384,
+        640
+      ],
+      "median_ms": 25.08,
+      "p10_ms": 23.97,
+      "p90_ms": 28.95,
+      "fps": 39.87,
+      "native_px_per_output_px": 3.0
+    },
+    {
       "config": "wasb  384x640 s1 w18 up1",
       "stem_stride": 1,
       "input": [
@@ -25,51 +65,11 @@
         384,
         640
       ],
-      "median_ms": 214.29,
-      "p10_ms": 208.6,
-      "p90_ms": 226.52,
-      "fps": 4.67,
+      "median_ms": 216.0,
+      "p10_ms": 204.55,
+      "p90_ms": 222.45,
+      "fps": 4.63,
       "native_px_per_output_px": 3.0
-    },
-    {
-      "config": "wasb  288x512 s1 w18 up1",
-      "stem_stride": 1,
-      "input": [
-        288,
-        512
-      ],
-      "trunk_width": 18,
-      "head_upsample": 1,
-      "params_m": 2.34,
-      "output_hw": [
-        288,
-        512
-      ],
-      "median_ms": 127.82,
-      "p10_ms": 123.57,
-      "p90_ms": 134.14,
-      "fps": 7.82,
-      "native_px_per_output_px": 3.75
-    },
-    {
-      "config": "coarse 384x640 s2 w18 up1",
-      "stem_stride": 2,
-      "input": [
-        384,
-        640
-      ],
-      "trunk_width": 18,
-      "head_upsample": 1,
-      "params_m": 2.34,
-      "output_hw": [
-        192,
-        320
-      ],
-      "median_ms": 54.53,
-      "p10_ms": 50.85,
-      "p90_ms": 60.44,
-      "fps": 18.34,
-      "native_px_per_output_px": 6.0
     },
     {
       "config": "coarse 384x640 s4 w18 up1",
@@ -85,131 +85,11 @@
         96,
         160
       ],
-      "median_ms": 16.61,
-      "p10_ms": 16.08,
-      "p90_ms": 20.75,
-      "fps": 60.22,
+      "median_ms": 17.28,
+      "p10_ms": 16.02,
+      "p90_ms": 20.28,
+      "fps": 57.89,
       "native_px_per_output_px": 12.0
-    },
-    {
-      "config": "dec   384x640 s2 w18 up2",
-      "stem_stride": 2,
-      "input": [
-        384,
-        640
-      ],
-      "trunk_width": 18,
-      "head_upsample": 2,
-      "params_m": 2.36,
-      "output_hw": [
-        384,
-        640
-      ],
-      "median_ms": 68.56,
-      "p10_ms": 63.61,
-      "p90_ms": 73.04,
-      "fps": 14.59,
-      "native_px_per_output_px": 3.0
-    },
-    {
-      "config": "dec   384x640 s4 w18 up2",
-      "stem_stride": 4,
-      "input": [
-        384,
-        640
-      ],
-      "trunk_width": 18,
-      "head_upsample": 2,
-      "params_m": 2.36,
-      "output_hw": [
-        192,
-        320
-      ],
-      "median_ms": 21.08,
-      "p10_ms": 18.95,
-      "p90_ms": 24.06,
-      "fps": 47.44,
-      "native_px_per_output_px": 6.0
-    },
-    {
-      "config": "dec   384x640 s4 w18 up4",
-      "stem_stride": 4,
-      "input": [
-        384,
-        640
-      ],
-      "trunk_width": 18,
-      "head_upsample": 4,
-      "params_m": 2.36,
-      "output_hw": [
-        384,
-        640
-      ],
-      "median_ms": 30.56,
-      "p10_ms": 29.31,
-      "p90_ms": 36.36,
-      "fps": 32.73,
-      "native_px_per_output_px": 3.0
-    },
-    {
-      "config": "dec   384x640 s4 w32 up4",
-      "stem_stride": 4,
-      "input": [
-        384,
-        640
-      ],
-      "trunk_width": 32,
-      "head_upsample": 4,
-      "params_m": 6.48,
-      "output_hw": [
-        384,
-        640
-      ],
-      "median_ms": 34.4,
-      "p10_ms": 33.84,
-      "p90_ms": 42.14,
-      "fps": 29.07,
-      "native_px_per_output_px": 3.0
-    },
-    {
-      "config": "dec   288x512 s2 w18 up2",
-      "stem_stride": 2,
-      "input": [
-        288,
-        512
-      ],
-      "trunk_width": 18,
-      "head_upsample": 2,
-      "params_m": 2.36,
-      "output_hw": [
-        288,
-        512
-      ],
-      "median_ms": 41.67,
-      "p10_ms": 38.24,
-      "p90_ms": 46.81,
-      "fps": 24.0,
-      "native_px_per_output_px": 3.75
-    },
-    {
-      "config": "dec   512x896 s4 w18 up4",
-      "stem_stride": 4,
-      "input": [
-        512,
-        896
-      ],
-      "trunk_width": 18,
-      "head_upsample": 4,
-      "params_m": 2.36,
-      "output_hw": [
-        512,
-        896
-      ],
-      "median_ms": 87.42,
-      "p10_ms": 83.71,
-      "p90_ms": 93.72,
-      "fps": 11.44,
-      "native_px_per_output_px": 2.14
     }
   ]
 }

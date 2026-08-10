@@ -113,7 +113,16 @@ def detection_targets(
         if not (0 <= ix < out_w and 0 <= iy < out_h):
             continue
         sigma = max(gaussian_radius(sh, sw) / 3.0, 0.6)
-        draw_gaussian(heat[int(cls)], cx, cy, sigma)
+        # The Gaussian is drawn at the INTEGER centre, not the float one, and the
+        # fractional part is carried by the offset map. This is what CenterNet
+        # does and it is not cosmetic: size and offset are stored only at
+        # ``(iy, ix)``, which is a floor. A Gaussian centred on the float position
+        # peaks at the *rounded* pixel, so whenever either fractional part exceeds
+        # 0.5 the decoder finds the peak one pixel away from where the size was
+        # written, reads a zero box and drops the detection. A ground-truth
+        # round-trip scored mAP 0.24 for exactly that reason — which is 1/4, the
+        # probability that both fractions land below 0.5.
+        draw_gaussian(heat[int(cls)], float(ix), float(iy), sigma)
         size[0, iy, ix], size[1, iy, ix] = sw, sh
         offset[0, iy, ix], offset[1, iy, ix] = cx - ix, cy - iy
         mask[iy, ix] = 1.0

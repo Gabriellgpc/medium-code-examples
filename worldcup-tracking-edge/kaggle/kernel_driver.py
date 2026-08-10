@@ -1,22 +1,17 @@
-"""Steps 1 and 2 in one session: does sharing a backbone hurt?
+"""Step 3: the control, plus the price of a bug found on the way to it.
 
-Three runs at an identical budget — ball alone, detection alone, then both on one
-trunk. Equal epochs on the full train split, equal validation, so the comparison
-is like-for-like. That equality is the whole point: a joint model's number means
-nothing without the solo number beside it.
+Two questions in one session, because the 7-minute data fetch is the fixed cost:
 
-**Why the WASB-faithful trunk is not in this run.** The previous session measured
-it at 5.4x the training time per epoch (930 s against 153 s for the same 500
-steps). Extrapolated to convergence on the full split that is roughly 36 GPU-hours
-against 7, which is more than the entire free weekly quota. It is not just too
-slow to *ship* at 214 ms on the iGPU — it is too slow to *train* here. Dropping it
-is a budget fact, not a claim that it would lose.
+1. **What did the detection-target bug cost?** The Steps 1-2 checkpoint was trained
+   with the Gaussian drawn at the float centre while size and offset were stored at
+   the floored pixel. A ground-truth round-trip through the decoder scored mAP 0.24
+   instead of 1.00 because of it — 1/4, the probability that both fractional parts
+   land below 0.5. Retraining at an identical budget with the fixed target and
+   scoring both checkpoints on the same frames prices the bug exactly.
 
-**Why the pitch head is not in this run.** Its target is 33 channels at 384x640,
-which is 32 MB per sample and 260 MB per batch of 8 before any augmentation. That
-would bottleneck the loader and distort the timing comparison this run exists to
-make. The fix is to emit the keypoint target at a coarser stride and rely on
-soft-argmax for sub-pixel recovery; until that is written and checked, pitch waits.
+2. **How does the detection head compare to RF-DETR?** Same frames, same
+   categories, same pycocotools. Accuracy only: RF-DETR-Large here runs at 1280 px
+   and 1.3 FPS on the target iGPU against SNet's 384x640 at 32.7 FPS.
 """
 
 import json
@@ -26,18 +21,10 @@ import time
 import traceback
 from pathlib import Path
 
-SRC = Path("/kaggle/input/soccernet-tracking-edge-src")
 SCRATCH = Path("/kaggle/tmp")
 OUT = Path("/kaggle/working")
-
 EPOCHS = 3
 BATCH = 8
-VAL_STRIDE = 29          # ~1500 val frames spread over all 58 valid sequences
-RUNS = [
-    ("solo-ball", ["--heads", "ball", "--tag", "solo_ball"]),
-    ("solo-detection", ["--heads", "detection", "--tag", "solo_detection"]),
-    ("joint-ball-detection", ["--heads", "ball,detection", "--tag", "joint_ball_det"]),
-]
 
 
 def sh(*cmd, check=True):
@@ -51,8 +38,10 @@ def sh(*cmd, check=True):
 SCRATCH.mkdir(parents=True, exist_ok=True)
 print("=== environment", flush=True)
 sh("nvidia-smi", "--query-gpu=name,memory.total", "--format=csv", check=False)
-sh("df", "-h", "/kaggle/working", str(SCRATCH), check=False)
 sh(sys.executable, "-m", "pip", "install", "-q", "loguru")
+# RF-DETR is only needed for the control arm; a failure here must not take the run
+# down, so eval_step3 catches the ImportError and records it.
+sh(sys.executable, "-m", "pip", "install", "-q", "rfdetr", check=False)
 
 
 def locate(marker: str) -> Path:
@@ -68,6 +57,11 @@ sys.path.insert(0, str(pkg_dir))
 sys.path.insert(0, str(scripts_dir))
 print(f"package: {pkg_dir}\nscripts: {scripts_dir}", flush=True)
 
+# The Steps 1-2 checkpoint, mounted from that kernel's output.
+old_ckpts = sorted(Path("/kaggle/input").rglob("joint_ball_det/best.pt"))
+old_ckpt = old_ckpts[0] if old_ckpts else None
+print(f"previous checkpoint: {old_ckpt}", flush=True)
+
 import prepare_gsr  # noqa: E402
 
 prepare_gsr.SPLITS = ["train", "valid"]
@@ -79,44 +73,47 @@ for split in prepare_gsr.SPLITS:
         prepare_gsr.prepare(root / split, split)
 print(f"data ready in {time.time() - t0:.0f}s", flush=True)
 
-summary = {}
-for label, extra in RUNS:
-    print(f"\n{'=' * 60}\n=== {label}\n{'=' * 60}", flush=True)
-    t0 = time.time()
-    cmd = [
+print(f"\n{'=' * 60}\n=== retrain joint with the fixed detection target\n{'=' * 60}", flush=True)
+t0 = time.time()
+try:
+    subprocess.run([
         sys.executable, str(scripts_dir / "train_snet.py"),
-        "--epochs", str(EPOCHS), "--batch", str(BATCH),
-        "--val-stride", str(VAL_STRIDE), "--val-limit", "1500",
-        "--workers", "2", *extra,
+        "--heads", "ball,detection", "--epochs", str(EPOCHS), "--batch", str(BATCH),
+        "--val-stride", "29", "--val-limit", "1500", "--workers", "2",
+        "--tag", "joint_fixed_target",
+    ], check=True)
+except subprocess.CalledProcessError:
+    traceback.print_exc()
+train_seconds = round(time.time() - t0, 1)
+
+print(f"\n{'=' * 60}\n=== Step 3: mAP\n{'=' * 60}", flush=True)
+new_ckpt = OUT / "snet" / "joint_fixed_target" / "best.pt"
+cmd = [
+    sys.executable, str(scripts_dir / "eval_step3.py"),
+    "--gsr", str(OUT / "gsr"), "--frames", str(SCRATCH / "gsr"), "--split", "valid",
+    "--val-stride", "87", "--val-limit", "500",
+    "--out", str(OUT / "step3_map.json"),
+]
+if old_ckpt:
+    cmd += ["--snet-ckpt", f"snet_buggy_target={old_ckpt}"]
+if new_ckpt.exists():
+    cmd += ["--snet-ckpt", f"snet_fixed_target={new_ckpt}"]
+try:
+    subprocess.run(cmd, check=True)
+except subprocess.CalledProcessError:
+    traceback.print_exc()
+
+report = {}
+if (OUT / "step3_map.json").exists():
+    report = json.loads((OUT / "step3_map.json").read_text())
+report["retrain_seconds"] = train_seconds
+hist = OUT / "snet" / "joint_fixed_target" / "history.json"
+if hist.exists():
+    h = json.loads(hist.read_text())["history"]
+    report["retrain_ball_f1_at_4px"] = [
+        e["ball_val"]["4"]["f1"] for e in h if "ball_val" in e
     ]
-    try:
-        subprocess.run([str(c) for c in cmd], check=True)
-    except subprocess.CalledProcessError:
-        traceback.print_exc()
-    summary[label] = {"seconds": round(time.time() - t0, 1)}
-
-print("\n=== results", flush=True)
-for hist in sorted((OUT / "snet").rglob("history.json")):
-    data = json.loads(hist.read_text())
-    name = hist.parent.name
-    row = {
-        "params_m": data.get("params_m"),
-        "epoch_seconds": [e["seconds"] for e in data["history"]],
-        "final_val_loss": data["history"][-1].get("val_loss"),
-    }
-    balls = [e["ball_val"]["4"] for e in data["history"] if "ball_val" in e]
-    if balls:
-        row["ball_f1_at_4px_per_epoch"] = [b["f1"] for b in balls]
-        row["best_ball_f1_at_4px"] = max(b["f1"] for b in balls)
-        row["best_ball_recall"] = max(b["recall"] for b in balls)
-    summary.setdefault(name, {}).update(row)
-    print(f"  {name}: {json.dumps(row)}", flush=True)
-
-(OUT / "step12_summary.json").write_text(json.dumps({
-    "note": "equal-budget solo vs joint; 3 epochs on the full train split, "
-            "not trained to convergence",
-    "epochs": EPOCHS, "batch": BATCH, "val_stride": VAL_STRIDE,
-    "runs": summary,
-}, indent=2))
-print(json.dumps(summary, indent=2), flush=True)
+    report["retrain_val_loss"] = h[-1].get("val_loss")
+(OUT / "step3_summary.json").write_text(json.dumps(report, indent=2))
+print(json.dumps(report, indent=2)[:3000], flush=True)
 print("\ndone", flush=True)

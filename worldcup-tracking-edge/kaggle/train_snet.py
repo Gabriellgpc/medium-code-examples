@@ -1,0 +1,202 @@
+"""Steps 1-2: train SNet heads, alone and jointly.
+
+Step 1 trains each head on its own so there is a single-task reference to compare
+against. This is not bookkeeping — the whole publishable question is *does one
+backbone hurt*, and a joint model scoring 85 means nothing until the solo head's
+number is known. Step 2 then trains jointly with uncertainty weighting.
+
+The other comparison this script exists to run is the one Step 0 opened: the
+WASB-faithful full-resolution trunk (``stem_stride=1``) against the decoder
+variant (``stem_stride=4, head_upsample=4``) that measured 7x faster on the iGPU
+for the same output resolution. Latency already favours the decoder decisively;
+what is unknown is the accuracy it costs.
+
+    python train_snet.py --heads ball --epochs 8
+    python train_snet.py --heads ball --stem-stride 1 --head-upsample 1 --epochs 8
+    python train_snet.py --heads ball,detection,pitch --epochs 12
+
+Checkpoints and metrics go to /kaggle/working (persisted); frames stay in scratch.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import time
+from pathlib import Path
+
+import numpy as np
+import torch
+from torch.utils.data import DataLoader
+
+OUT = Path("/kaggle/working/snet")
+GSR = Path("/kaggle/working/gsr")
+SCRATCH = Path("/kaggle/tmp/gsr")
+
+
+def locate_package() -> None:
+    for c in Path("/kaggle/input").rglob("soccernet_tracking_edge/__init__.py"):
+        sys.path.insert(0, str(c.parent.parent))
+        return
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+
+locate_package()
+
+from soccernet_tracking_edge.core.snet_data import SNetDataset  # noqa: E402
+from soccernet_tracking_edge.core.snet_eval import ball_metrics_sweep  # noqa: E402
+from soccernet_tracking_edge.core.snet_loss import (  # noqa: E402
+    UncertaintyWeighting,
+    compute_losses,
+)
+from soccernet_tracking_edge.core.snet_model import SNetConfig, SNetModel  # noqa: E402
+from soccernet_tracking_edge.core.targets import soft_argmax  # noqa: E402
+
+
+def build_loaders(args, heads):
+    common = dict(
+        size=(args.height, args.width), heads=heads,
+        ball_stride=1, det_stride=args.stem_stride,
+    )
+    train = SNetDataset(
+        SCRATCH / "train", GSR / "train" / "detection.json",
+        GSR / "train" / "ball_track.json", augment=True, limit=args.limit, **common,
+    )
+    val_root = SCRATCH / args.val_split
+    val_det = GSR / args.val_split / "detection.json"
+    val = SNetDataset(
+        val_root, val_det, GSR / args.val_split / "ball_track.json",
+        augment=False, limit=args.val_limit, **common,
+    ) if val_det.exists() else None
+    return (
+        DataLoader(train, batch_size=args.batch, shuffle=True,
+                   num_workers=args.workers, pin_memory=True, drop_last=True),
+        DataLoader(val, batch_size=args.batch, shuffle=False,
+                   num_workers=args.workers) if val else None,
+    )
+
+
+@torch.no_grad()
+def evaluate_ball(model, loader, device, scale_x: float, scale_y: float) -> dict:
+    """Decode the ball head with centre-of-heatmap and score it WASB-style.
+
+    Predictions are mapped back to *native* pixels before scoring, because the
+    tolerance tau is defined there — scoring in network pixels would silently
+    make the threshold three times looser.
+    """
+    model.eval()
+    records = []
+    for batch in loader:
+        images = batch["image"].to(device, non_blocking=True)
+        heat = torch.sigmoid(model(images)["ball"]).cpu().numpy()
+        for i in range(heat.shape[0]):
+            got = soft_argmax(heat[i, 0], threshold=0.5)
+            pred = (got[0] / scale_x, got[1] / scale_y) if got else None
+            score = got[2] if got else 0.0
+            gt = batch["ball_heat"][i, 0].numpy()
+            truth = soft_argmax(gt, threshold=0.5)
+            records.append({
+                "pred": pred, "score": score,
+                "truth": (truth[0] / scale_x, truth[1] / scale_y) if truth else None,
+            })
+    model.train()
+    return ball_metrics_sweep(records)
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--heads", default="ball", help="comma-separated: ball,detection,pitch")
+    ap.add_argument("--epochs", type=int, default=8)
+    ap.add_argument("--batch", type=int, default=8)
+    ap.add_argument("--lr", type=float, default=1e-3)
+    ap.add_argument("--height", type=int, default=384)
+    ap.add_argument("--width", type=int, default=640)
+    ap.add_argument("--stem-stride", type=int, default=4)
+    ap.add_argument("--head-upsample", type=int, default=4)
+    ap.add_argument("--trunk-width", type=int, default=18)
+    ap.add_argument("--workers", type=int, default=2)
+    ap.add_argument("--limit", type=int, default=None, help="cap training samples")
+    ap.add_argument("--val-limit", type=int, default=1500)
+    ap.add_argument("--val-split", default="valid")
+    ap.add_argument("--eval-every", type=int, default=1)
+    ap.add_argument("--tag", default=None)
+    args = ap.parse_args()
+
+    heads = tuple(h.strip() for h in args.heads.split(",") if h.strip())
+    tag = args.tag or f"{'-'.join(heads)}_s{args.stem_stride}_up{args.head_upsample}"
+    run_dir = OUT / tag
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    cfg = SNetConfig(
+        width=args.trunk_width, stem_stride=args.stem_stride,
+        head_upsample=args.head_upsample, heads=heads,
+    )
+    model = SNetModel(cfg).to(device)
+    weighting = UncertaintyWeighting(heads).to(device)
+    params = list(model.parameters()) + list(weighting.parameters())
+    opt = torch.optim.AdamW(params, lr=args.lr, weight_decay=1e-4)
+
+    train_loader, val_loader = build_loaders(args, heads)
+    sched = torch.optim.lr_scheduler.OneCycleLR(
+        opt, max_lr=args.lr, total_steps=max(1, args.epochs * len(train_loader)),
+    )
+    scaler = torch.amp.GradScaler(device, enabled=device == "cuda")
+
+    print(f"run {tag} | device {device} | {model.n_params/1e6:.2f}M params", flush=True)
+    print(f"train {len(train_loader.dataset)} samples, "
+          f"val {len(val_loader.dataset) if val_loader else 0}", flush=True)
+
+    scale_x, scale_y = args.width / 1920.0, args.height / 1080.0
+    history = []
+    best = -1.0
+    for epoch in range(args.epochs):
+        t0, running = time.time(), {}
+        for step, batch in enumerate(train_loader):
+            batch = {k: v.to(device, non_blocking=True) for k, v in batch.items()}
+            with torch.amp.autocast(device, enabled=device == "cuda"):
+                losses = compute_losses(model(batch["image"]), batch, heads)
+                total, weights = weighting(losses)
+            opt.zero_grad(set_to_none=True)
+            scaler.scale(total).backward()
+            scaler.step(opt)
+            scaler.update()
+            sched.step()
+            for k, v in losses.items():
+                running[k] = running.get(k, 0.0) + float(v)
+            if step % 50 == 0:
+                parts = " ".join(f"{k}={float(v):.4f}" for k, v in losses.items())
+                print(f"  e{epoch} s{step}/{len(train_loader)} total={float(total):.4f} "
+                      f"{parts}", flush=True)
+
+        entry = {
+            "epoch": epoch,
+            "seconds": round(time.time() - t0, 1),
+            "train": {k: round(v / max(1, len(train_loader)), 5) for k, v in running.items()},
+            "weights": {k: round(v, 4) for k, v in weights.items()},
+        }
+        if val_loader and "ball" in heads and (epoch + 1) % args.eval_every == 0:
+            entry["ball_val"] = evaluate_ball(model, val_loader, device, scale_x, scale_y)
+            f1 = entry["ball_val"]["4"]["f1"]
+            print(f"  epoch {epoch}: ball F1@4px = {f1:.4f} "
+                  f"(AP {entry['ball_val']['4']['ap']:.4f})", flush=True)
+            if f1 > best:
+                best = f1
+                torch.save({"model": model.state_dict(), "cfg": cfg.__dict__},
+                           run_dir / "best.pt")
+        history.append(entry)
+        (run_dir / "history.json").write_text(json.dumps(
+            {"args": vars(args), "params_m": round(model.n_params / 1e6, 3),
+             "history": history}, indent=2))
+        print(f"epoch {epoch} done in {entry['seconds']}s", flush=True)
+
+    torch.save({"model": model.state_dict(), "cfg": cfg.__dict__}, run_dir / "last.pt")
+    print(f"\nbest ball F1@4px: {best:.4f}" if best >= 0 else "\nno ball eval run")
+    print(f"artifacts in {run_dir}", flush=True)
+
+
+if __name__ == "__main__":
+    np.random.seed(0)
+    torch.manual_seed(0)
+    main()

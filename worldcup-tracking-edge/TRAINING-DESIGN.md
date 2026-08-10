@@ -613,6 +613,138 @@ Still open:
 
 ---
 
+## 8. The training spec (single backbone)
+
+M1 removed the objection that forced two networks, so v1 now attempts the single
+trunk. RF-DETR does not disappear — it becomes the **control**, and the comparison
+against it is the experiment.
+
+### 8.1 Architecture
+
+```
+  frames t-2, t-1, t  ──►  stacked on channels: 9 x 384 x 640
+                                      │
+                          HRNet-small trunk, stem strides removed
+                          (WASB Fig. 3c layout), features kept at 384x640
+                                      │
+        ┌─────────────────────────────┼─────────────────────────────┐
+        ▼                             ▼                             ▼
+   BALL head                   DETECTION head                  PITCH head
+   1 heatmap                   3 class heatmaps                K keypoint heatmaps
+   (current frame)             + size (w,h) + offset           + line-extremity maps
+                               player/referee/goalkeeper
+```
+
+**Why 9 channels instead of caching trunk features.** Both give the ball head
+temporal context. Stacking raw frames costs one wider convolution in the stem and
+a 2.2 MB frame buffer; caching features would mean shipping ~17 MB of feature map
+in and out of the compiled graph *every frame*, because an OpenVINO IR is static
+and cross-call state has to travel as an input. The cheap option is also the
+simple one.
+
+**Why the ball head is not MIMO.** WASB emits N heatmaps from N frames so it can
+run the trunk once per N frames. That saving does not exist here: detection and
+pitch need the trunk on *every* frame regardless. And WASB's own soccer numbers
+say we lose nothing — step=3 gives F1 88.3 and step=1 gives 88.2, identical AP
+83.6, at 2.4x the cost [4, Table 2]. So: one heatmap, current frame, trunk every
+frame.
+
+**Consequence for `core/snet.py`:** with a 9-channel input every head technically
+needs 3 frames. `Task.temporal` currently returns True only for `BALL_TRACKING`.
+Either the contract widens, or the first two frames of a clip repeat frame 0 as
+padding and only the ball is reported as unavailable. **The second is right** —
+detection and pitch read mostly the current-frame channels and degrade gracefully,
+while a padded ball position would be fabricated.
+
+**Subpixel output is mandatory, not a refinement.** At 384x640 one heatmap pixel is
+**3 native pixels**. Plain argmax therefore carries ~0.87 px of native quantisation
+error (std of a uniform ±1.5), against a §6.6 budget of sigma = 2–3 px for the
+whole pitch head. Quantisation alone would eat a third of it. Use WASB's
+centre-of-heatmap for the ball [4] and soft-argmax for the keypoints.
+
+**Expand the landmark set.** §6.6 says we need **>= 8** well-spread keypoints;
+§6.6 also measures a median of only **9 visible of our 33**. We would be running at
+the minimum with no margin, and the p10 is 5. PnLCalib gets around exactly this by
+deriving extra keypoints from line-line, line-conic and tangent intersections [5],
+and SN-GSR annotates 26 distinct line types (measured in §6.4) to build them from.
+**Adopt a PnLCalib-style expanded set before training the pitch head**, or the
+median frame sits on the edge of the failure regime M3 identified.
+
+### 8.2 Losses
+
+| Head | Loss | Source |
+|---|---|---|
+| Ball | real-valued Gaussian target + focal-style loss (WASB Eq. 2–3), d=2.5, c_min=0.7 | [4] |
+| Detection | CornerNet/CenterNet focal on class-centre heatmaps (Gaussian sigma scaled by box size) + L1 on size + L1 on offset | standard |
+| Pitch | L2 heatmap regression (PnLCalib's published choice) | [5] |
+| Balance | Kendall uncertainty weighting: one learned log-sigma per head | [9] |
+
+Three notes on where these are ours rather than inherited:
+
+- **The ball is not a detection class.** It gets a dedicated full-resolution head,
+  which also removes the worst imbalance from the detection head: without it the
+  three remaining classes are player 87.6%, referee 8.9%, goalkeeper 3.5%.
+- **Visibility weighting is our formulation, not TOTNet's.** TOTNet reports a
+  "visibility-weighted loss" [13] but I could not read the paper, so the formula is
+  not inherited. Ours: frames where the ball is annotated keep full weight; the
+  5.89% where it is absent supervise an all-zero heatmap at a tuned weight w_abs.
+  Absence is real signal — the ball genuinely leaves frame — so w_abs should start
+  at 1.0 and only move if the head learns to suppress.
+- **PnLCalib's L2 is the baseline; focal-Gaussian is an ablation.** Since the ball
+  head already implements the focal form, trying it on keypoints is nearly free.
+  L2 runs first because it is the published number.
+
+### 8.3 Augmentation, with one trap
+
+Horizontal flip is the obvious augmentation and it is **wrong unless the landmark
+labels are permuted with it**: flipping maps `corner_tl` to `corner_tr`,
+`l_penalty_spot` to `r_penalty_spot`, and so on through the whole set. An unpermuted
+flip teaches the pitch head that the left goal is the right goal. Same class of bug
+as left/right joint flips in pose estimation. Build the permutation table from
+`LANDMARKS` and unit-test it before the first run.
+
+Otherwise: colour jitter, scale/crop jitter. No vertical flip (gravity is real).
+
+### 8.4 The plan, in order
+
+**Step 0 — measure latency before training anything.** Build the trunk, export it
+to OpenVINO with random weights, and time it on the iGPU at 384x640. This is the
+project's biggest open risk and it costs an afternoon: WASB reports 55.7 FPS on a
+V100, and an Iris Xe is roughly an order of magnitude slower, so a full-resolution
+trunk at 1.67x WASB's pixel count could land in single-digit FPS. **If the
+architecture cannot hit the latency target, no amount of training fixes it** — and
+the honest response is to shrink the trunk or drop the resolution, both of which
+are cheaper to discover now than after 30 GPU-hours.
+
+**Step 1 — single-task references.** Train each head alone on the shared trunk:
+ball only, pitch only, detection only. These numbers are not optional bookkeeping.
+The publishable question is *does one backbone hurt*, and without a single-task
+reference per head there is no way to answer it — a joint model that scores 85
+means nothing until you know the solo head scores 84 or 91.
+
+**Step 2 — joint training** with uncertainty weighting, compared head-by-head
+against Step 1.
+
+**Step 3 — the control.** Detection compared against the existing RF-DETR on the
+same split and the same iGPU. This is where the two-network fallback lives: if
+joint detection loses materially, v1 reverts to RF-DETR + a two-head geometry net,
+and the negative result is still worth publishing.
+
+**Data**: use the official SN-GSR splits (train 57 / valid 58 / test 49 sequences)
+rather than re-splitting. `snt-prepare`'s by-sequence split exists for datasets
+without official ones; using it here would leak.
+
+### 8.5 What could still sink this
+
+- **Latency** (Step 0). The single biggest risk, and the reason Step 0 is Step 0.
+- **Detection quality in crowds.** A centre-heatmap detector degrades where two
+  players share a centre, which is exactly the penalty-box situation that matters.
+  This is the specific thing RF-DETR is expected to win, and Step 3 measures it.
+- **The pitch head at 8+ keypoints.** Untested at HRNet-small scale; §8.1's
+  expanded landmark set is a mitigation, not a guarantee.
+
+---
+
 ## References
 
 1. V. Somers, V. Joos, A. Cioppa, S. Giancola, S. A. Ghasemzadeh, F. Magera, B. Standaert, A. M. Mansourian, X. Zhou, S. Kasaei, B. Ghanem, A. Alahi, M. Van Droogenbroeck, C. De Vleeschouwer. *SoccerNet Game State Reconstruction: End-to-End Athlete Tracking and Identification on a Minimap*. CVPRW (CVsports), 2024. <https://arxiv.org/abs/2404.11335>

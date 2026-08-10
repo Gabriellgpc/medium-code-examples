@@ -305,11 +305,11 @@ def m3_keypoint_budget(det_json: Path, n_frames: int = 300) -> dict:
         pitch = np.array([a["pitch_xy"] for a in anns], dtype=np.float64)
 
         try:
-            # NOTE: fit_homography's `ransac_px` threshold is applied in the
+            # NOTE: fit_homography's `ransac_m` threshold is applied in the
             # *destination* space, which here is the pitch — so the unit is
             # metres, not pixels. The parameter name in core/pitch.py is
             # misleading and should be fixed separately.
-            H_gt, res = fit_homography(feet, pitch, ransac_px=1.0)
+            H_gt, res = fit_homography(feet, pitch, ransac_m=1.0)
             H_inv = np.linalg.inv(H_gt)
         except (ValueError, np.linalg.LinAlgError):
             skipped += 1

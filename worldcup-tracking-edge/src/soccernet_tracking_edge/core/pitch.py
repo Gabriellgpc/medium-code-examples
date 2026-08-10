@@ -82,7 +82,7 @@ def foot_point(xyxy: np.ndarray) -> np.ndarray:
 
 
 def fit_homography(
-    image_pts: np.ndarray, pitch_pts: np.ndarray, ransac_px: float | None = None
+    image_pts: np.ndarray, pitch_pts: np.ndarray, ransac_m: float | None = None
 ) -> tuple[np.ndarray, np.ndarray]:
     """Least-squares homography image -> pitch, with its per-point error.
 
@@ -91,8 +91,18 @@ def fit_homography(
     Four points is the minimum; more is better, and the error vector is what
     tells you whether the annotation is any good.
 
-    ``ransac_px`` switches to RANSAC with that reprojection threshold, for when
-    the correspondences may contain a mis-clicked point.
+    Four is also the *dangerous* minimum, not merely the smallest that works:
+    eight landmarks lie on each goal line and five on the halfway line, so 11% of
+    four-point subsets contain a collinear triple, and a four-point DLT passes
+    exactly through its own points however degenerate they are — the failure is
+    invisible to ``errors_m``. Measured on SN-GSR, a four-point fit puts a third
+    of players more than 5 m from the truth even with perfect keypoints. Prefer
+    eight or more, spread across the frame.
+
+    ``ransac_m`` switches to RANSAC with that inlier threshold, for when the
+    correspondences may contain a mis-clicked point. **The unit is metres, not
+    pixels**: OpenCV measures the reprojection error in the destination space,
+    and the destination here is the pitch.
     """
     image_pts = np.asarray(image_pts, dtype=np.float64).reshape(-1, 2)
     pitch_pts = np.asarray(pitch_pts, dtype=np.float64).reshape(-1, 2)
@@ -101,10 +111,10 @@ def fit_homography(
     if len(image_pts) < 4:
         raise ValueError("a homography needs at least 4 correspondences")
 
-    if ransac_px is None:
+    if ransac_m is None:
         H, _ = cv2.findHomography(image_pts, pitch_pts, method=0)
     else:
-        H, _ = cv2.findHomography(image_pts, pitch_pts, cv2.RANSAC, ransac_px)
+        H, _ = cv2.findHomography(image_pts, pitch_pts, cv2.RANSAC, ransac_m)
     if H is None:
         raise ValueError("homography fit failed: are the points collinear or duplicated?")
 

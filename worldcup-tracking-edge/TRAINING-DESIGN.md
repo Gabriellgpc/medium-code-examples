@@ -309,15 +309,16 @@ so a table-tennis win does not transfer by assumption.
 WASB is also **MIT-licensed with released weights** [4], so it is reusable without the
 licensing problem that rules out the Ultralytics path.
 
-**Decision: WASB as the base recipe, plus two cheap grafts.**
+**Decision: WASB as the base recipe, plus one graft (the second was measured away).**
 
-1. **TOTNet's visibility-weighted loss** — near-zero cost, because `build_ball_track`
-   already exports a per-frame `visible` flag and the ball is absent in 5–8% of frames.
-   The data for it exists today.
-2. **BlurBall's blur-centre relabeling** — moving the annotation from the leading edge
-   of the blur streak to its centre makes the target symmetric, which is a pure data
-   change. **Must be checked first**: I do not know which convention SN-GSR uses. Verify
-   against the annotations before assuming there is anything to fix.
+1. **TOTNet's visibility-weighted loss** — kept. Near-zero cost, because
+   `build_ball_track` already exports a per-frame `visible` flag and the ball is absent
+   in **5.89%** of train frames (§6.4).
+2. ~~BlurBall's blur-centre relabeling~~ — **dropped.** M2 (§6.5) measured the
+   convention rather than assuming it: SN-GSR already annotates the ball at the centre
+   of its streak (median offset −0.08 on a −1…+1 scale), so there is nothing to fix.
+   The blur in this footage is mild anyway — a 15 px ball moving 20 px per frame barely
+   produces a streak, which is not the table-tennis setting BlurBall was built for.
 
 And the honest framing, which is itself the interesting question: *the 2024–2026
 improvements to sports-ball tracking are all validated on racquet sports; do they
@@ -445,35 +446,114 @@ rather than being dropped.
 
 ---
 
-## 6.5 M3 — the keypoint error budget (preliminary, synthetic)
+## 6.4 M1 — player box geometry (measured)
 
-Run with `scripts/keypoint_budget_synthetic.py`; artifact
-`output/keypoint_budget_synthetic.json`. 15 look-at cameras (55 m setback, 14 m
-high, pan −30…+30 m, focal 1600/2400/3600 px, HD frame), 20 player layouts each.
+Kaggle kernel `condados/snet-gsr-measurements`, train split: 57 sequences, 42,750
+frames, 731,555 boxes, all 1920×1080. Artifact:
+`output/gsr_measurements/train_measurements.json`.
 
-**This is a synthetic camera sweep, not a measurement of SoccerNet.** It has no
-radial distortion — which BroadTrack found was its single biggest accuracy factor
-[7] — no annotation error, and it assumes landmarks are never mis-identified. Read
-it as an optimistic bound, to be confirmed by M3 on real frames.
+Native pixel sizes, before any resize:
 
-Cell = median player-position error / % of players beyond GS-HOTA's 5 m tolerance:
+| Class | n | p1 | p10 | **median** | p90 | p99 |
+|---|---|---|---|---|---|---|
+| ball (longest side) | 40,931 | 7 | 10 | **15** | 22 | 32 |
+| player (height) | 604,971 | 44 | 65 | **100** | 142 | 184 |
+| referee (height) | 61,546 | 30 | 41 | **88** | 134 | 175 |
+| goalkeeper (height) | 24,107 | 35 | 56 | **79** | 116 | 143 |
 
-| σ (px) | k=4 | k=6 | k=8 | k=12 | k=all visible |
+Median height / % of boxes under 12 px, at each candidate input resolution:
+
+| Resolution | scale | player | referee | goalkeeper | ball (longest) |
 |---|---|---|---|---|---|
-| 0.0 | 0.00 m — **22.1%** | 0.00 m — 1.6% | 0.00 m — 0.0% | 0.00 m — 0.0% | 0.00 m — 0.0% |
-| 1.0 | 0.53 m — 8.2% | 0.19 m — 1.0% | 0.14 m — 0.0% | 0.11 m — 0.0% | 0.11 m — 0.0% |
-| 2.0 | 1.14 m — 23.7% | 0.37 m — 3.4% | 0.26 m — 0.1% | 0.20 m — 0.0% | 0.21 m — 0.0% |
-| 3.0 | 2.15 m — 36.1% | 0.54 m — 3.9% | 0.40 m — 1.6% | 0.32 m — 0.0% | 0.31 m — 0.0% |
-| 5.0 | 3.86 m — 44.5% | 0.94 m — 8.5% | 0.76 m — 2.9% | 0.57 m — 0.0% | 0.52 m — 0.4% |
-| 8.0 | 5.33 m — 51.5% | 1.58 m — 12.4% | 1.10 m — 4.1% | 0.88 m — 1.5% | 0.84 m — 1.8% |
+| 288×512 | ×0.267 | 26.7 px / **1.1%** | 23.5 px / **12.2%** | 21.1 px / 3.4% | 4.0 px |
+| 384×640 | ×0.333 | 33.3 px / 0.4% | 29.3 px / 6.8% | 26.3 px / 1.1% | 5.0 px |
+| 512×896 | ×0.467 | 46.7 px / 0.2% | 41.1 px / 0.3% | 36.9 px / 0.2% | 7.0 px |
+| 640×1088 | ×0.567 | 56.7 px / 0.1% | 49.9 px / 0.2% | 44.8 px / 0.1% | 8.5 px |
 
-**Visible landmarks per camera: median 10 of 33 (range 5–17)** — which is the
+**Verdict: the v2 single-backbone merge is viable.** At WASB's own 288×512 the
+median player is still 27 px tall and only 1.1% of players fall under 12 px. The
+fear that detection could not survive at ball-head resolution was wrong.
+
+**The weak class is the referee, not the player.** Referees have a much longer
+tail (p10 = 41 px native against the player's 65) because assistants stand at the
+far touchline, so 12.2% of them drop under 12 px at 288×512. That halves to 6.8%
+at 384×640, which is why **384×640 is the recommended shared input** rather than
+288×512: it costs ~1.4× the pixels and buys back the referee class.
+
+Also confirmed against the earlier estimate: ball median 15 px, visible in
+**94.11%** of frames.
+
+## 6.5 M2 — ball annotation convention (measured)
+
+240 fast frames sampled (displacement ≥ 12 px between consecutive annotated
+frames), 219 measured, 12 with no blob found. Offset is signed along the motion
+direction and normalised by the streak's half-length: **0 = centre of the streak,
++1 = leading tip, −1 = trailing tip.**
+
+| Statistic | Value |
+|---|---|
+| offset along motion, **median** | **−0.08** |
+| offset, p25 / p75 | −0.63 / +0.04 |
+| streak vs motion angle, median / p90 | 10.5° / 63.2° |
+| ball speed, median / p90 | 20.5 / 38.2 px per frame |
+| correlation(speed, annotated box size) | 0.46 |
+
+**Verdict: SN-GSR already labels the ball at the centre. BlurBall's relabeling
+graft is dropped** — there is nothing for it to fix. The 0.46 correlation between
+speed and annotated box size says the same thing a second way: the box grows with
+the streak rather than tracking one end of it.
+
+Two honesty notes:
+
+- The p90 streak-vs-motion angle of 63° means my bright-blob detector locks onto
+  something that is *not* a motion streak in a sizeable minority of samples — a
+  shirt, a line marking, a boot. Those failures are visible in the contact sheet
+  (`m2_ball_crops.png`, red = annotation, green = detected centroid) and they are
+  what produces the −1.29 p10 tail. **The median is the trustworthy statistic
+  here; the mean (−0.355) is dragged by detector failures and should not be
+  quoted.**
+- The deeper reason the distinction does not matter: at a median 20.5 px per frame
+  with a 15 px ball, the streak is barely longer than the ball itself. This
+  footage is not motion-blurred the way table-tennis footage is, which is the
+  setting BlurBall was built for.
+
+## 6.6 M3 — the keypoint error budget (measured, and the synthetic run it confirms)
+
+Two runs, and they agree. `scripts/keypoint_budget_synthetic.py` answered this
+from geometry alone before the dataset was available (15 look-at cameras, no
+radial distortion, artifact `output/keypoint_budget_synthetic.json`). The Kaggle
+run then repeated it on **300 real frames**, deriving a ground-truth homography
+per frame from athlete foot points against their annotated `bbox_pitch` in metres,
+inverting it to place the 33 pitch landmarks in the image, and perturbing those.
+
+The GT homographies are sound: **median fit residual 0.09 m, p90 0.17 m.**
+
+Cell = median player-position error / % of players beyond GS-HOTA's 5 m tolerance,
+**measured on real frames**:
+
+| σ (px) | k=4 | k=6 | k=8 | k=12 |
+|---|---|---|---|---|
+| 0.0 | 0.00 m — **33.6%** | 0.00 m — 3.5% | 0.00 m — 0.0% | 0.00 m — 0.0% |
+| 0.5 | 1.04 m — 37.2% | 0.08 m — 1.7% | 0.07 m — 0.5% | 0.05 m — 0.0% |
+| 1.0 | 1.63 m — 39.5% | 0.15 m — 3.4% | 0.12 m — 0.6% | 0.14 m — 0.0% |
+| 2.0 | 3.77 m — 46.2% | 0.31 m — 5.0% | 0.26 m — 0.4% | 0.22 m — 0.0% |
+| 3.0 | 5.08 m — 50.4% | 0.45 m — 5.6% | **0.39 m — 2.1%** | 0.35 m — 0.1% |
+| 5.0 | 6.57 m — 53.6% | 0.75 m — 8.6% | 0.62 m — 3.7% | 0.56 m — 0.3% |
+| 8.0 | 9.02 m — 60.5% | 1.26 m — 12.6% | 1.01 m — 7.2% | 1.00 m — 3.1% |
+
+**Visible landmarks per frame: median 9 of 33 (p10 = 5, p90 = 12)** — the
 quantitative form of the complaint that "only a small subset of field markings is
-visible" [2].
+visible" [2]. The synthetic sweep guessed a median of 10 with a range to 17, so it
+was optimistic at the top end but right in the middle.
+
+Synthetic vs measured, on the two cells that matter: k=8 at σ=3 was predicted
+0.40 m / 1.6% and measured **0.39 m / 2.1%** — close enough to trust the method.
+k=4 at σ=0 was predicted 22.1% and measured **33.6%**, so reality is *worse* than
+the model, and the finding below is stronger than it first looked.
 
 ### Finding 1: four keypoints are unsafe at *any* accuracy
 
-The k=4 column loses 22.1% of players past 5 m with **perfect, zero-noise
+The k=4 column loses **33.6%** of players past 5 m with **perfect, zero-noise
 keypoints**. That is not numerical noise; it is the landmark set's own geometry.
 Verified directly against `LANDMARKS`:
 
@@ -492,8 +572,8 @@ never fall back to a minimal set.**
 
 ### Finding 2: JaC@5 is a stricter bar than GS-HOTA actually needs
 
-With k ≥ 8, **σ = 3 px costs 0.40 m median and puts only 1.6% of players past 5 m**.
-Even σ = 8 px holds 1.10 m median. The pitch head does not need sub-pixel accuracy
+With k ≥ 8, **σ = 3 px costs 0.39 m median and puts only 2.1% of players past 5 m**.
+Even σ = 8 px holds 1.01 m median. The pitch head does not need sub-pixel accuracy
 to serve GS-HOTA.
 
 That is because JaC@5 is a 5-**pixel** reprojection criterion while GS-HOTA is a
@@ -511,29 +591,25 @@ measurement, and it is why every 2025 entrant added optical-flow smoothing [3].
 
 ## 7. Open questions before the first training run
 
-Checks M1–M3 are implemented in `kaggle/measure_gsr.py`, to run in the session
-after `prepare_gsr.py` while the frames are still in scratch.
+M1–M3 are **done** (`kaggle/measure_gsr.py`, run as Kaggle kernel
+`condados/snet-gsr-measurements`; artifacts under `output/gsr_measurements/`).
+What they settled: shared input **384×640**, detection *can* share the trunk,
+pitch head needs **≥8 keypoints at ~2–3 px**, BlurBall's graft dropped.
 
-1. **M1 — player box height distribution** at candidate input resolutions. Decides
-   whether detection can share the trunk. *Pending: needs Kaggle.*
-2. **M2 — ball annotation convention** (blur centre vs leading edge). Decides whether
-   BlurBall's graft has anything to fix. Writes a contact sheet so the automated
-   answer can be checked by eye. *Pending: needs Kaggle.*
-3. **M3 — keypoint error budget.** ✅ **Answered synthetically** (§6.5): ≥8 well-spread
-   keypoints at ~2–3 px, never a minimal 4-point set. Still to confirm on real frames,
-   with real camera distortion.
-4. **Temporal stability of the homography** — not covered by M3, and the reason every
-   2025 entrant added optical-flow smoothing [3]. Needs its own metric.
-5. **Which HRNet width.** WASB used the small design at 1.5 M params for ball alone;
-   three heads may want more.
-6. **Do pitch-line and keypoint heads share a decoder** or need separate ones. PnLCalib
+Still open:
+
+1. **Temporal stability of the homography** — not covered by M3, which is per-frame
+   and independent. A homography that wobbles between frames wrecks association even
+   when every single frame passes, and it is why every 2025 entrant added optical-flow
+   smoothing [3]. Needs its own metric before any of §6.6 can be called sufficient.
+2. **Which HRNet width.** WASB used the small design at 1.5 M params for the ball
+   alone; three heads may want more.
+3. **Do pitch-line and keypoint heads share a decoder** or need separate ones. PnLCalib
    uses two *separate networks* [5]; folding them is untested by us.
-7. **Weights remain private** until written KAUST permission — unchanged, and no
+4. **RF-DETR's Apache-2.0 Seg/Keypoint variants** for the pitch head (§3.5) — still
+   unverified for field landmarks rather than human pose.
+5. **Weights remain private** until written KAUST permission — unchanged, and no
    training artefact should be published before that.
-
-Unrelated bug found while writing M3: `core/pitch.py`'s `fit_homography(...,
-ransac_px=)` applies its threshold in the **destination** space, which is the pitch —
-so the unit is metres, not pixels. The name is wrong and should be fixed.
 
 ---
 

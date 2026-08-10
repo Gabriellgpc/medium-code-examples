@@ -696,14 +696,39 @@ Three notes on where these are ours rather than inherited:
 
 ### 8.3 Augmentation, with one trap
 
-Horizontal flip is the obvious augmentation and it is **wrong unless the landmark
-labels are permuted with it**: flipping maps `corner_tl` to `corner_tr`,
-`l_penalty_spot` to `r_penalty_spot`, and so on through the whole set. An unpermuted
-flip teaches the pitch head that the left goal is the right goal. Same class of bug
-as left/right joint flips in pose estimation. Build the permutation table from
-`LANDMARKS` and unit-test it before the first run.
+Implemented in `SNetDataset` on Albumentations: mild affine (scale 0.92-1.08,
+translate +/-4%, rotate +/-4 degrees), brightness/contrast, hue/saturation, light
+Gaussian noise, and rare small motion blur. Geometry stays gentle deliberately —
+at 384x640 the ball is about 5 px across, so aggressive scaling or blur deletes the
+object the ball head exists to find. No vertical flip (gravity is real).
 
-Otherwise: colour jitter, scale/crop jitter. No vertical flip (gravity is real).
+Two things the library does not do for us:
+
+1. **The three stacked frames must share one draw of the parameters**, or the
+   difference between consecutive frames becomes augmentation rather than the ball
+   moving, and the temporal head learns the augmentation. Handled with
+   `additional_targets`; verified by feeding three identical frames and confirming
+   they stay identical (40/40).
+2. **Horizontal flip stays ours, outside Albumentations.** The library mirrors
+   keypoint *coordinates*; it has no idea that `corner_tl` becomes `corner_tr`.
+   That relabelling is semantic. An unpermuted flip teaches the pitch head that the
+   left goal is the right goal — the same bug as left/right joint flips in pose
+   estimation. The permutation is built by mirroring pitch coordinates so it
+   survives changes to `LANDMARKS`, and is unit-tested as involutive.
+
+Also load-bearing: `remove_invisible=False` on the keypoint params. Keypoint index
+k *is* landmark k, so silently dropping the ones that leave frame would shift every
+later landmark into the wrong heatmap channel.
+
+Coordinates are augmented and rasterised into heatmaps afterwards, never the other
+way round: warping a rendered heatmap blurs the Gaussians and moves their peaks off
+the true centre.
+
+**Dependency note.** Albumentations pulls `opencv-python-headless`, which installs
+into the same `cv2` namespace as `opencv-python` and wins, silently removing the
+GUI backend that `snt-calibrate` needs (it is an interactive picker built on
+`namedWindow`/`imshow`/`setMouseCallback`). A `[tool.uv] override-dependencies`
+entry drops the headless requirement.
 
 ### 8.4 The plan, in order
 

@@ -28,6 +28,7 @@ dependencies = [
     "loguru>=0.7.3",
     "tabulate>=0.9.0",
     "matplotlib>=3.8.0",
+    "albumentations>=2.0",
 ]
 
 # sn-trackeval (HOTA, the SoccerNet leaderboard metric) is an optional extra:
@@ -64,3 +65,12 @@ select = ["E", "F", "UP", "B", "SIM", "I"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["soccernet_tracking_edge"]
+
+[tool.uv]
+# albumentations depends on opencv-python-headless, which installs into the SAME
+# `cv2` namespace as opencv-python and wins. That silently removes the GUI
+# backend, and `snt-calibrate` is an interactive picker built on namedWindow /
+# imshow / setMouseCallback - it fails at runtime with "the function is not
+# implemented". An override with a marker that never evaluates true drops the
+# headless requirement so the GUI build stays the only cv2 on the path.
+override-dependencies = ["opencv-python-headless; sys_platform == 'nonexistent'"]

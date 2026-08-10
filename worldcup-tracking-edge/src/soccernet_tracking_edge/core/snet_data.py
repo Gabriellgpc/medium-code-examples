@@ -93,6 +93,7 @@ class SNetDataset(Dataset):
         self.heads = heads
         self.augment = augment
         self.flip_perm = flip_permutation()
+        self.augmenter = self._build_augmenter() if augment else None
 
         data = json.loads(Path(det_json).read_text())
         self.anns: dict[int, list[dict]] = defaultdict(list)
@@ -129,10 +130,47 @@ class SNetDataset(Dataset):
 
         self.landmark_pts = np.array(list(LANDMARKS.values()), dtype=np.float64)
 
+    def _build_augmenter(self):
+        """Photometric and mild geometric augmentation, identical across the stack.
+
+        ``additional_targets`` is what makes the three frames share one draw of
+        the parameters. If each frame sampled its own shift or rotation, the
+        difference between consecutive frames would be augmentation rather than
+        the ball moving, and the temporal head would learn that.
+
+        Horizontal flip is deliberately NOT here. Albumentations mirrors keypoint
+        *coordinates*, but it has no idea that ``corner_tl`` becomes ``corner_tr``
+        — that relabelling is semantic and stays ours (see ``flip_permutation``).
+        Geometry stays gentle for the same reason the ball head exists at all: at
+        384x640 the ball is about 5 px across, so aggressive scaling or blur
+        deletes the object we are trying to find.
+        """
+        import albumentations as A
+
+        return A.Compose(
+            [
+                A.Affine(scale=(0.92, 1.08), translate_percent=(-0.04, 0.04),
+                         rotate=(-4, 4), p=0.5),
+                A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),
+                A.HueSaturationValue(hue_shift_limit=8, sat_shift_limit=20,
+                                     val_shift_limit=12, p=0.3),
+                A.GaussNoise(p=0.15),
+                A.MotionBlur(blur_limit=3, p=0.08),
+            ],
+            additional_targets={"image1": "image", "image2": "image"},
+            bbox_params=A.BboxParams(format="coco", label_fields=["bbox_classes"],
+                                     clip=True, min_visibility=0.25),
+            # remove_invisible=False is load-bearing: keypoint index k IS landmark
+            # k, and silently dropping the ones that leave frame would shift every
+            # later landmark into the wrong heatmap channel.
+            keypoint_params=A.KeypointParams(format="xy", label_fields=["kp_ids"],
+                                            remove_invisible=False),
+        )
+
     def __len__(self) -> int:
         return len(self.index)
 
-    def _load_stack(self, seq: str, i: int, flip: bool) -> tuple[np.ndarray, float, float]:
+    def _load_frames(self, seq: str, i: int, flip: bool) -> tuple[list[np.ndarray], float, float]:
         frames = self.sequences[seq]
         h, w = self.size
         chans = []
@@ -149,37 +187,23 @@ class SNetDataset(Dataset):
             if flip:
                 img = cv2.flip(img, 1)
             chans.append(img)
-        stack = np.concatenate(chans, axis=2).astype(np.float32) / 255.0
-        return stack.transpose(2, 0, 1), w / src_w, h / src_h
+        return chans, w / src_w, h / src_h
 
     def __getitem__(self, idx: int) -> dict:
         seq, i = self.index[idx]
         rec = self.sequences[seq][i]
-        flip = bool(self.augment and np.random.rand() < 0.5)
-        stack, sx, sy = self._load_stack(seq, i, flip)
         h, w = self.size
-        out: dict[str, np.ndarray] = {"image": stack}
-
+        flip = bool(self.augment and np.random.rand() < 0.5)
+        frames, sx, sy = self._load_frames(seq, i, flip)
         anns = self.anns.get(rec["id"], [])
 
-        if "ball" in self.heads:
-            bh, bw = h // self.ball_stride, w // self.ball_stride
-            heat = np.zeros((1, bh, bw), dtype=np.float32)
-            xy = self._ball_xy(seq, rec, anns)
-            visible = 0.0
-            if xy is not None:
-                cx, cy = xy[0] * sx, xy[1] * sy
-                if flip:
-                    cx = w - 1 - cx
-                cx, cy = cx / self.ball_stride, cy / self.ball_stride
-                if 0 <= cx < bw and 0 <= cy < bh:
-                    ball_gaussian(heat[0], cx, cy)
-                    visible = 1.0
-            out["ball_heat"] = heat
-            out["ball_visible"] = np.float32(visible)
-
+        # Everything is converted to target-resolution pixels first, then
+        # augmented as coordinates, and only rasterised into heatmaps at the end.
+        # Rasterising first and warping the heatmap would blur the Gaussians and
+        # move their peaks off the true centre.
+        boxes: list[list[float]] = []
+        classes: list[int] = []
         if "detection" in self.heads:
-            boxes, classes = [], []
             for a in anns:
                 cls = DET_CLASSES.get(a["category_id"])
                 if cls is None:
@@ -189,8 +213,70 @@ class SNetDataset(Dataset):
                 by, bhei = by * sy, bhei * sy
                 if flip:
                     bx = w - bx - bwid
+                bx = max(0.0, min(bx, w - 1.0))
+                by = max(0.0, min(by, h - 1.0))
+                bwid = max(1e-3, min(bwid, w - bx))
+                bhei = max(1e-3, min(bhei, h - by))
                 boxes.append([bx, by, bwid, bhei])
                 classes.append(cls)
+
+        ball_xy = None
+        if "ball" in self.heads:
+            xy = self._ball_xy(seq, rec, anns)
+            if xy is not None:
+                cx, cy = xy[0] * sx, xy[1] * sy
+                if flip:
+                    cx = w - 1 - cx
+                ball_xy = [cx, cy]
+
+        landmark_xy, kp_valid = (None, 0.0)
+        if "pitch" in self.heads:
+            landmark_xy, kp_valid = self._landmark_points(anns, sx, sy, flip)
+
+        # One keypoint list: id 0 is the ball, ids 1..N are landmarks. They travel
+        # together so a single transform moves both consistently.
+        kp_xy: list[list[float]] = []
+        kp_ids: list[int] = []
+        if ball_xy is not None:
+            kp_xy.append(ball_xy)
+            kp_ids.append(0)
+        if landmark_xy is not None:
+            for k, (x, y) in enumerate(landmark_xy):
+                kp_xy.append([float(x), float(y)])
+                kp_ids.append(1 + k)
+
+        if self.augmenter is not None:
+            res = self.augmenter(
+                image=frames[0], image1=frames[1], image2=frames[2],
+                bboxes=boxes, bbox_classes=classes,
+                keypoints=kp_xy, kp_ids=kp_ids,
+            )
+            frames = [res["image"], res["image1"], res["image2"]]
+            boxes = [list(b) for b in res["bboxes"]]
+            classes = [int(round(float(c))) for c in res["bbox_classes"]]
+            kp_xy = [list(k) for k in res["keypoints"]]
+            # Albumentations returns label fields as floats; the ids index
+            # heatmap channels, so they go back to int before use.
+            kp_ids = [int(round(float(k))) for k in res["kp_ids"]]
+
+        by_id = dict(zip(kp_ids, kp_xy, strict=True))
+        stack = np.concatenate(frames, axis=2).astype(np.float32) / 255.0
+        out: dict[str, np.ndarray] = {"image": stack.transpose(2, 0, 1)}
+
+        if "ball" in self.heads:
+            bh, bw = h // self.ball_stride, w // self.ball_stride
+            heat = np.zeros((1, bh, bw), dtype=np.float32)
+            visible = 0.0
+            pt = by_id.get(0)
+            if pt is not None:
+                cx, cy = pt[0] / self.ball_stride, pt[1] / self.ball_stride
+                if 0 <= cx < bw and 0 <= cy < bh:
+                    ball_gaussian(heat[0], cx, cy)
+                    visible = 1.0
+            out["ball_heat"] = heat
+            out["ball_visible"] = np.float32(visible)
+
+        if "detection" in self.heads:
             t = detection_targets(
                 np.asarray(boxes, dtype=np.float64).reshape(-1, 4),
                 np.asarray(classes, dtype=np.int64),
@@ -203,12 +289,24 @@ class SNetDataset(Dataset):
             out["det_mask"] = t["mask"]
 
         if "pitch" in self.heads:
-            kp, present, valid = self._pitch_targets(anns, sx, sy, flip)
-            out["kp_heat"] = kp
+            n_kp = len(self.landmark_pts)
+            pts = np.zeros((n_kp, 2), dtype=np.float64)
+            vis = np.zeros(n_kp, dtype=bool)
+            for k in range(n_kp):
+                pt = by_id.get(1 + k)
+                if pt is None:
+                    continue
+                pts[k] = pt
+                vis[k] = 0 <= pt[0] < w and 0 <= pt[1] < h
+            heat, present = keypoint_targets(
+                pts, vis, h // self.ball_stride, w // self.ball_stride,
+                n_kp, 1.0 / self.ball_stride,
+            )
+            out["kp_heat"] = heat
             out["kp_present"] = present
             # Per-frame: was a homography available at all? Distinct from a
             # landmark simply being out of frame (see keypoint_loss).
-            out["kp_valid"] = np.float32(valid)
+            out["kp_valid"] = np.float32(kp_valid)
 
         return out
 
@@ -231,14 +329,15 @@ class SNetDataset(Dataset):
                 return bx + bw / 2.0, by + bh / 2.0
         return None
 
-    def _pitch_targets(
+    def _landmark_points(
         self, anns: list[dict], sx: float, sy: float, flip: bool
-    ) -> tuple[np.ndarray, np.ndarray, float]:
-        h, w = self.size
-        n_kp = len(self.landmark_pts)
-        heat = np.zeros((n_kp, h // self.ball_stride, w // self.ball_stride), dtype=np.float32)
-        present = np.zeros(n_kp, dtype=np.float32)
+    ) -> tuple[np.ndarray | None, float]:
+        """Landmark positions in target-resolution pixels, or None when unsupervised.
 
+        Returns points rather than heatmaps so they can pass through augmentation
+        as coordinates; the caller rasterises afterwards.
+        """
+        w = self.size[1]
         feet, pitch = [], []
         for a in anns:
             if a["category_id"] == 0 or not a.get("pitch_xy"):
@@ -249,14 +348,14 @@ class SNetDataset(Dataset):
             feet.append([(bx + bwid / 2.0), by + bhei])
             pitch.append(a["pitch_xy"])
         if len(feet) < MIN_ATHLETES_FOR_HOMOGRAPHY:
-            return heat, present, 0.0   # no ground truth: excluded from the loss
+            return None, 0.0   # no ground truth: excluded from the loss
 
         try:
             # Threshold is in metres: the destination of this homography is the pitch.
             h_img2pitch, _ = fit_homography(np.asarray(feet), np.asarray(pitch), ransac_m=1.0)
             h_pitch2img = np.linalg.inv(h_img2pitch)
         except (ValueError, np.linalg.LinAlgError):
-            return heat, present, 0.0
+            return None, 0.0
 
         img_pts = project(h_pitch2img, self.landmark_pts)
         img_pts[:, 0] *= sx
@@ -264,13 +363,4 @@ class SNetDataset(Dataset):
         if flip:
             img_pts[:, 0] = w - 1 - img_pts[:, 0]
             img_pts = img_pts[self.flip_perm]
-
-        visible = (
-            (img_pts[:, 0] >= 0) & (img_pts[:, 0] < w)
-            & (img_pts[:, 1] >= 0) & (img_pts[:, 1] < h)
-        )
-        heat, present = keypoint_targets(
-            img_pts, visible, h // self.ball_stride, w // self.ball_stride,
-            n_kp, 1.0 / self.ball_stride,
-        )
-        return heat, present, 1.0
+        return img_pts, 1.0

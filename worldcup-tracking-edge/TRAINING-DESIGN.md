@@ -1,8 +1,8 @@
 # SNet: architecture, losses, evaluation — research memo
 
-Status: research complete, components **decided** (RF-DETR + WASB, §3.5), **no training
-code written yet**. Every number below is sourced; where I could not verify something I
-say so instead of guessing.
+Status: research complete; components **decided** (§3.5); Steps 0-2 **measured**
+(§6.4-§6.6, §9); Step 3 in progress. Every number below is sourced; where I could not
+verify something I say so instead of guessing.
 
 Scope: decide the backbone/head layout, the loss per head, and the evaluation
 protocol for the model that will back `core/snet.py`.

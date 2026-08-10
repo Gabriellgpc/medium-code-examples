@@ -81,10 +81,18 @@ def eval_snet(ckpt: Path, ds: SNetDataset, gt_json: Path, device: str) -> dict:
         )
         results += to_coco_results(dets, [rec["id"]], SNET_TO_GT)
         image_ids.append(rec["id"])
-    return evaluate_coco(gt_json, results, cat_ids=SHARED_CATS, image_ids=image_ids)
+    stats = evaluate_coco(gt_json, results, cat_ids=SHARED_CATS, image_ids=image_ids)
+    # Hand the GPU back before the next arm. The caching allocator holds this
+    # model's memory after it goes out of scope, and RF-DETR-Large at 1288 px is
+    # large enough that the leftover is the difference between running and OOM.
+    del model
+    if device == "cuda":
+        torch.cuda.empty_cache()
+    return stats
 
 
-def eval_rfdetr(ds: SNetDataset, gt_json: Path, resolution: int, threshold: float) -> dict:
+def eval_rfdetr(ds: SNetDataset, gt_json: Path, resolution: int, threshold: float,
+                weights_path: str | None = None) -> dict:
     """Run the fine-tuned SoccerNet RF-DETR over the same frames."""
     import cv2
     from huggingface_hub import hf_hub_download
@@ -92,11 +100,21 @@ def eval_rfdetr(ds: SNetDataset, gt_json: Path, resolution: int, threshold: floa
 
     from soccernet_tracking_edge.config import SOCCER_HF_REPO
 
-    weights = hf_hub_download(SOCCER_HF_REPO, "checkpoint_best_total.pth")
+    # Verified against the repo file list; an earlier guess at
+    # "checkpoint_best_total.pth" 404'd after the whole dataset had been fetched.
+    weights = weights_path or hf_hub_download(
+        SOCCER_HF_REPO, "weights/checkpoint_best_regular.pth")
+    # num_classes=3 is what the checkpoint actually carries; passing 4 only
+    # produces a warning and is overridden. The head still emits ids 0-3, and
+    # the mapping below was verified on real frames by box size: id 0 has a
+    # median height of 15.9 px (the ball) while ids 1-3 sit at 90-126 px.
     model = RFDETRLargeDeprecated(
-        pretrain_weights=weights, resolution=resolution, num_classes=4,
+        pretrain_weights=weights, resolution=resolution, num_classes=3,
     )
-    model.optimize_for_inference()
+    # Deliberately NOT calling optimize_for_inference(): it traces the model,
+    # which roughly doubles peak memory, and it switches to fp16. Both are
+    # throughput features, and this script measures accuracy — the plain fp32
+    # graph is the more faithful thing to score.
 
     results, image_ids = [], []
     for i in range(len(ds)):
@@ -124,9 +142,14 @@ def main() -> None:
                     help="label=path; repeatable")
     ap.add_argument("--val-stride", type=int, default=87)
     ap.add_argument("--val-limit", type=int, default=500)
-    ap.add_argument("--rfdetr-resolution", type=int, default=1280)
+    # RF-DETR-Large (patch 14) asserts the input is divisible by 56. The
+    # checkpoint card says it trained at 1280, which is not; 1288 is the nearest
+    # multiple and a 0.6% difference.
+    ap.add_argument("--rfdetr-resolution", type=int, default=1288)
     ap.add_argument("--rfdetr-threshold", type=float, default=0.05)
     ap.add_argument("--skip-rfdetr", action="store_true")
+    ap.add_argument("--rfdetr-weights", default=None,
+                    help="local .pth; omit to fetch from the Hub")
     ap.add_argument("--out", default="/kaggle/working/step3_map.json")
     args = ap.parse_args()
 
@@ -157,6 +180,7 @@ def main() -> None:
         try:
             report["rfdetr_soccernet"] = eval_rfdetr(
                 ds, gt_json, args.rfdetr_resolution, args.rfdetr_threshold,
+                args.rfdetr_weights,
             )
             print(" ", summarise("rfdetr_soccernet", report["rfdetr_soccernet"]), flush=True)
             print("  per class:", report["rfdetr_soccernet"].get("per_class_AP"), flush=True)

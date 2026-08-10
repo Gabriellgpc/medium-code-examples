@@ -1,0 +1,18 @@
+__pycache__
+.venv
+*.egg-info
+.ruff_cache
+# uv.lock IS committed for reproducible installs (gold-pattern default).
+data
+models
+*.pt
+runs
+output/*.png
+output/*.csv
+output/*.md
+output/*.mp4
+output/*.gif
+output/*.log
+output/cache
+.env
+*error*

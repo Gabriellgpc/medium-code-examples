@@ -1,0 +1,98 @@
+[
+  {
+    "detector": "det",
+    "precision": "fp32",
+    "tracker": "bytetrack",
+    "det_fps": 4.0848310107203085,
+    "MOTA": 0.5721649484536082,
+    "MOTP": 0.23090049334712015,
+    "IDF1": 0.4570072283957277,
+    "IDSW": 108,
+    "FP": 158,
+    "FN": 2141
+  },
+  {
+    "detector": "det",
+    "precision": "fp32",
+    "tracker": "ocsort",
+    "det_fps": 4.0848310107203085,
+    "MOTA": 0.4178812655527906,
+    "MOTP": 0.20844186316772523,
+    "IDF1": 0.41857073407875545,
+    "IDSW": 193,
+    "FP": 29,
+    "FN": 3053
+  },
+  {
+    "detector": "det",
+    "precision": "int8_full",
+    "tracker": "bytetrack",
+    "det_fps": 7.075327323051806,
+    "MOTA": 0.565410593672236,
+    "MOTP": 0.2343555938399076,
+    "IDF1": 0.4732510288065844,
+    "IDSW": 111,
+    "FP": 158,
+    "FN": 2176
+  },
+  {
+    "detector": "det",
+    "precision": "int8_full",
+    "tracker": "ocsort",
+    "det_fps": 7.075327323051806,
+    "MOTA": 0.40739424102381794,
+    "MOTP": 0.20754486305368475,
+    "IDF1": 0.40623848704408694,
+    "IDSW": 177,
+    "FP": 24,
+    "FN": 3133
+  },
+  {
+    "detector": "soccer",
+    "precision": "fp32",
+    "tracker": "bytetrack",
+    "det_fps": 0.43947671737261246,
+    "MOTA": 0.8229648062566655,
+    "MOTP": 0.20225735611788756,
+    "IDF1": 0.5770101925254814,
+    "IDSW": 120,
+    "FP": 110,
+    "FN": 766
+  },
+  {
+    "detector": "soccer",
+    "precision": "fp32",
+    "tracker": "ocsort",
+    "det_fps": 0.43947671737261246,
+    "MOTA": 0.7612868823320299,
+    "MOTP": 0.19350053560041958,
+    "IDF1": 0.622848200312989,
+    "IDSW": 233,
+    "FP": 41,
+    "FN": 1069
+  },
+  {
+    "detector": "soccer",
+    "precision": "int8_full",
+    "tracker": "bytetrack",
+    "det_fps": 1.8981193357809722,
+    "MOTA": 0.8199431212228937,
+    "MOTP": 0.2050541070430798,
+    "IDF1": 0.6589103291713961,
+    "IDSW": 99,
+    "FP": 117,
+    "FN": 797
+  },
+  {
+    "detector": "soccer",
+    "precision": "int8_full",
+    "tracker": "ocsort",
+    "det_fps": 1.8981193357809722,
+    "MOTA": 0.7570209740490579,
+    "MOTP": 0.19729039929121878,
+    "IDF1": 0.6227932522557866,
+    "IDSW": 231,
+    "FP": 40,
+    "FN": 1096
+  }
+]

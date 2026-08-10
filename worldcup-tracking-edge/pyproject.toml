@@ -1,0 +1,66 @@
+[project]
+name = "soccernet-tracking-edge"
+version = "0.1.0"
+description = "Real-time player + ball tracking for the 2026 World Cup: RF-DETR + roboflow/trackers, OpenVINO INT8 on an Intel iGPU"
+readme = "README.md"
+authors = [{ name = "Luis Condados", email = "condadoslgpc@gmail.com" }]
+requires-python = ">=3.11"
+dependencies = [
+    "torch>=2.8.0",
+    "torchvision>=0.23.0",
+    "rfdetr>=1.7.0",
+    "supervision>=0.25.0",
+    # 2.5.0's PyPI wheel ships zero package files (broken upstream build config);
+    # 2.4.0 is the last intact release and already includes ByteTrack + OC-SORT.
+    "trackers==2.4.0",
+    "openvino>=2025.1.0",
+    "nncf>=2.16.0",
+    "onnx>=1.17.0",
+    "onnxruntime>=1.19.0",
+    "motmetrics>=1.4.0",
+    "SoccerNet>=0.1.60",
+    "huggingface-hub>=0.30.0",
+    "opencv-python>=4.10.0",
+    "pillow>=10.0.0",
+    "numpy>=1.26.0",
+    "scipy>=1.11.0",
+    "click>=8.1.0",
+    "loguru>=0.7.3",
+    "tabulate>=0.9.0",
+    "matplotlib>=3.8.0",
+]
+
+# sn-trackeval (HOTA, the SoccerNet leaderboard metric) is an optional extra:
+# it pulls a heavier dependency tree, and motmetrics already covers
+# MOTA/MOTP/IDF1/ID-switches. Install with `uv sync --extra hota` when you want
+# HOTA/DetA/AssA as the second, leaderboard-comparable cross-check.
+[project.optional-dependencies]
+hota = ["sn-trackeval>=0.2.0"]
+
+[project.scripts]
+snt-download = "soccernet_tracking_edge.cli.download:download"
+snt-calibrate = "soccernet_tracking_edge.cli.calibrate:calibrate"
+snt-prepare = "soccernet_tracking_edge.cli.prepare:prepare"
+snt-export = "soccernet_tracking_edge.cli.export:export"
+snt-quantize = "soccernet_tracking_edge.cli.quantize:cli"
+snt-track = "soccernet_tracking_edge.cli.track:track"
+snt-evaluate = "soccernet_tracking_edge.cli.evaluate:evaluate"
+snt-benchmark = "soccernet_tracking_edge.cli.benchmark:benchmark"
+snt-trackbench = "soccernet_tracking_edge.cli.trackbench:trackbench"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/soccernet_tracking_edge"]
+
+[tool.ruff]
+src = ["src"]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "UP", "B", "SIM", "I"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["soccernet_tracking_edge"]

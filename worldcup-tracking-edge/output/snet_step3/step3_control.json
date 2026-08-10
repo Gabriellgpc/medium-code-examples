@@ -30,7 +30,24 @@
       }
     },
     "rfdetr_soccernet": {
-      "error": "AssertionError: Backbone requires input shape to be divisible by 56, but got torch.Size([1, 3, 1280, 1280])"
+      "mAP": 0.4053,
+      "mAP_50": 0.6764,
+      "mAP_75": 0.4478,
+      "mAP_small": 0.3021,
+      "mAP_medium": 0.3988,
+      "mAP_large": 0.5268,
+      "AR_1": 0.2984,
+      "AR_10": 0.4913,
+      "AR_100": 0.5486,
+      "AR_small": 0.3586,
+      "AR_medium": 0.545,
+      "AR_large": 0.6581,
+      "n_detections": 17851,
+      "per_class_AP": {
+        "player": 0.4891,
+        "referee": 0.1863,
+        "goalkeeper": 0.5405
+      }
     }
   }
 }

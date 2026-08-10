@@ -840,6 +840,51 @@ architecture failure, 45 min on the bounded trunk comparison, 4.35 h on this run
 
 ---
 
+## 9.5 Step 3: the control
+
+Same 500 frames drawn across all 58 SN-GSR valid sequences, same three categories,
+scored by pycocotools. Artifact: `output/snet_step3/`.
+
+| | params | mAP | AP50 | AP75 | mAP small | player | referee | goalkeeper |
+|---|---|---|---|---|---|---|---|---|
+| SNet detection head | 2.19 M | 0.2574 | 0.5463 | 0.2031 | 0.1198 | 0.340 | 0.173 | 0.259 |
+| RF-DETR-Large (SoccerNet) | 128 M | **0.4053** | **0.6764** | **0.4478** | **0.3021** | 0.489 | 0.186 | **0.541** |
+
+**RF-DETR wins on accuracy, by 1.57x on mAP.** It should: 58x the parameters,
+1288 px against 640, and a model card reporting ~14 hours on an A100 against our
+1.7 hours on a T4. Nothing here is a surprise, and the point of a control is not
+to win it.
+
+What the breakdown says, which the headline does not:
+
+- **The gap is localisation, not detection.** AP50 differs by 24% while AP75
+  differs by 2.2x. SNet finds objects nearly as often and places the box far less
+  precisely — exactly the expected signature of a stride-4 head at 640 px wide,
+  where one output pixel spans 12 native ones, against direct box regression at
+  1288 px. `mAP_small` (0.30 against 0.12) says the same thing from the size axis.
+- **Referee is almost a tie** (0.186 against 0.173, 7.6%). It is the hard class for
+  both, which matches M1: assistants stand at the far touchline and have the
+  longest size tail of any class.
+- **Goalkeeper is where RF-DETR really wins** (0.541 against 0.259). Goalkeepers
+  are 3.2% of boxes; the small model has less capacity to spend on a rare class.
+
+Put against the latency measurement, SNet reaches **63% of RF-DETR's mAP at 4% of
+its iGPU latency** (30.6 ms against 1.3 FPS). That is the trade the project exists
+to characterise, and it is now measured on both axes rather than argued.
+
+### Two caveats that must travel with these numbers
+
+1. **SNet is not converged.** Three epochs. This is not its ceiling, and the
+   comparison is at wildly unequal training budgets.
+2. **Possible train/eval overlap on RF-DETR's side, unverified.** That checkpoint
+   was fine-tuned on SoccerNet-Tracking, and the SN-GSR paper describes reusing
+   annotations that already existed in SoccerNet-tracking [1]. If the two datasets
+   share footage, RF-DETR may have trained on frames that appear in our validation
+   split, which would inflate its number. I have not checked sequence provenance,
+   and this should be resolved before the comparison is published.
+
+---
+
 ## 10. What is left
 
 1. **Step 3, the control**: this detection head against RF-DETR on the same split

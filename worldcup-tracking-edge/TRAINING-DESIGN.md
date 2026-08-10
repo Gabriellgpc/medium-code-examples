@@ -876,12 +876,59 @@ to characterise, and it is now measured on both axes rather than argued.
 
 1. **SNet is not converged.** Three epochs. This is not its ceiling, and the
    comparison is at wildly unequal training budgets.
-2. **Possible train/eval overlap on RF-DETR's side, unverified.** That checkpoint
-   was fine-tuned on SoccerNet-Tracking, and the SN-GSR paper describes reusing
-   annotations that already existed in SoccerNet-tracking [1]. If the two datasets
-   share footage, RF-DETR may have trained on frames that appear in our validation
-   split, which would inflate its number. I have not checked sequence provenance,
-   and this should be resolved before the comparison is published.
+2. ~~Possible train/eval overlap on RF-DETR's side~~ — **checked, and there is
+   none.** See §9.6.
+
+---
+
+## 9.6 Provenance: SN-GSR *is* SoccerNet-Tracking, and the splits are inherited
+
+The Step 3 baseline was fine-tuned on SoccerNet-Tracking and scored on SN-GSR
+valid, which raises an obvious contamination question that sequence names cannot
+answer (SNMOT-xxx against SNGS-xxx says nothing about the footage). The clip
+metadata can: both datasets record `game_id` and `clip_start` in milliseconds for
+a 750-frame window.
+
+`scripts/check_split_provenance.py` reads a remote zip's central directory and
+pulls only the label files by byte range — 58 files of a few kB instead of an
+11 GB download. Artifacts: `output/prov_{train,valid,test}.json`.
+
+**The two datasets are the same clips.** Matched against the SoccerNet-Tracking
+sequences on local disk:
+
+| SoccerNet-Tracking | game_id | clip_start | SN-GSR |
+|---|---|---|---|
+| SNMOT-116 | 7 | 969000 | **SNGS-116** |
+| SNMOT-117 | 7 | 1050000 | **SNGS-117** |
+| SNMOT-118 | 7 | 1089000 | **SNGS-118** |
+
+Same match, same millisecond offset, and the numeric suffix is preserved. SN-GSR
+is SoccerNet-Tracking re-annotated.
+
+**The splits are disjoint by match, and inherited:**
+
+| split | sequences | games |
+|---|---|---|
+| train | 57 | 4, 6, 9 |
+| valid | 58 | 2, 3, 5 |
+| test | 49 | 7, 8, 11 |
+
+No `game_id` appears in two splits, and the locally-held SoccerNet-Tracking *test*
+sequences are game 7 — which is an SN-GSR *test* game, not a valid one. The split
+assignment carries across.
+
+**Conclusion: the Step 3 comparison is clean.** The RF-DETR card reports a training
+set of 42,750 images, which is exactly 57 × 750 — the train split, games {4, 6, 9}.
+We evaluated on valid, games {2, 3, 5}. Disjoint matches, so the baseline never saw
+the frames it was scored on.
+
+One inference is doing work here and should be named: RF-DETR's training set is
+identified from its card's `dataset_size` matching the train split exactly, plus
+its stated dataset. I have not seen its actual file list.
+
+This also matters beyond the baseline: **train and valid are different matches, not
+different minutes of the same match.** Our own numbers are measured across a
+genuine domain gap, not a shuffled one.
 
 ---
 

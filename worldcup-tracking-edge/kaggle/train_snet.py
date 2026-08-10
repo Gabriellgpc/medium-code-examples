@@ -54,6 +54,32 @@ from soccernet_tracking_edge.core.snet_model import SNetConfig, SNetModel  # noq
 from soccernet_tracking_edge.core.targets import soft_argmax  # noqa: E402
 
 
+def check_device() -> str:
+    """Pick a device, and refuse a GPU whose architecture this torch cannot target.
+
+    Kaggle's default free accelerator is a Tesla P100 (sm_60), and current PyTorch
+    builds start at sm_70 — so ``torch.cuda.is_available()`` returns True and then
+    the first convolution dies with "no kernel image is available for execution on
+    the device", thirty lines deep in a stack trace, after the data has already
+    been downloaded. Fail here instead, with the reason, and say what to do:
+    request ``machine_shape: NvidiaTeslaT4`` (sm_75).
+    """
+    if not torch.cuda.is_available():
+        print("no CUDA device; falling back to CPU (this will be very slow)", flush=True)
+        return "cpu"
+    major, minor = torch.cuda.get_device_capability(0)
+    name = torch.cuda.get_device_name(0)
+    supported = torch.cuda.get_arch_list()
+    if f"sm_{major}{minor}" not in supported:
+        raise SystemExit(
+            f"{name} is sm_{major}{minor}, but this PyTorch supports {supported}.\n"
+            "Re-run with machine_shape 'NvidiaTeslaT4' in kernel-metadata.json, or "
+            "install a torch build that targets this architecture."
+        )
+    print(f"device: {name} (sm_{major}{minor})", flush=True)
+    return "cuda"
+
+
 def build_loaders(args, heads):
     common = dict(
         size=(args.height, args.width), heads=heads,
@@ -67,7 +93,7 @@ def build_loaders(args, heads):
     val_det = GSR / args.val_split / "detection.json"
     val = SNetDataset(
         val_root, val_det, GSR / args.val_split / "ball_track.json",
-        augment=False, limit=args.val_limit, **common,
+        augment=False, limit=args.val_limit, stride=args.val_stride, **common,
     ) if val_det.exists() else None
     return (
         DataLoader(train, batch_size=args.batch, shuffle=True,
@@ -75,6 +101,28 @@ def build_loaders(args, heads):
         DataLoader(val, batch_size=args.batch, shuffle=False,
                    num_workers=args.workers) if val else None,
     )
+
+
+@torch.no_grad()
+def validation_losses(model, loader, device, heads) -> dict:
+    """Mean per-head loss on the validation split.
+
+    The ball head has a real metric (WASB F1); detection and pitch do not have one
+    wired up yet. Validation loss is a weaker signal, but it is the *same* signal
+    for every head, which is what the single-task-versus-joint comparison needs —
+    comparing a joint run's mAP against a solo run's training loss would answer
+    nothing at all.
+    """
+    model.eval()
+    totals: dict[str, float] = {}
+    n = 0
+    for batch in loader:
+        batch = {k: v.to(device, non_blocking=True) for k, v in batch.items()}
+        for k, v in compute_losses(model(batch["image"]), batch, heads).items():
+            totals[k] = totals.get(k, 0.0) + float(v)
+        n += 1
+    model.train()
+    return {k: round(v / max(1, n), 5) for k, v in totals.items()}
 
 
 @torch.no_grad()
@@ -118,6 +166,8 @@ def main() -> None:
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--limit", type=int, default=None, help="cap training samples")
     ap.add_argument("--val-limit", type=int, default=1500)
+    ap.add_argument("--val-stride", type=int, default=29,
+                    help="subsample validation across sequences, not a prefix")
     ap.add_argument("--val-split", default="valid")
     ap.add_argument("--eval-every", type=int, default=1)
     ap.add_argument("--tag", default=None)
@@ -128,7 +178,7 @@ def main() -> None:
     run_dir = OUT / tag
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = check_device()
     cfg = SNetConfig(
         width=args.trunk_width, stem_stride=args.stem_stride,
         head_upsample=args.head_upsample, heads=heads,
@@ -176,6 +226,10 @@ def main() -> None:
             "train": {k: round(v / max(1, len(train_loader)), 5) for k, v in running.items()},
             "weights": {k: round(v, 4) for k, v in weights.items()},
         }
+        if val_loader and (epoch + 1) % args.eval_every == 0:
+            entry["val_loss"] = validation_losses(model, val_loader, device, heads)
+            print(f"  epoch {epoch}: val loss " +
+                  " ".join(f"{k}={v}" for k, v in entry["val_loss"].items()), flush=True)
         if val_loader and "ball" in heads and (epoch + 1) % args.eval_every == 0:
             entry["ball_val"] = evaluate_ball(model, val_loader, device, scale_x, scale_y)
             f1 = entry["ball_val"]["4"]["f1"]
@@ -183,6 +237,13 @@ def main() -> None:
                   f"(AP {entry['ball_val']['4']['ap']:.4f})", flush=True)
             if f1 > best:
                 best = f1
+                torch.save({"model": model.state_dict(), "cfg": cfg.__dict__},
+                           run_dir / "best.pt")
+        elif "val_loss" in entry and entry["val_loss"]:
+            # No ball head: keep the checkpoint with the lowest total val loss.
+            score = -sum(entry["val_loss"].values())
+            if score > best:
+                best = score
                 torch.save({"model": model.state_dict(), "cfg": cfg.__dict__},
                            run_dir / "best.pt")
         history.append(entry)

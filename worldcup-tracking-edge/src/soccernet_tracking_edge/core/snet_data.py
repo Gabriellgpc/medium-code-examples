@@ -83,6 +83,7 @@ class SNetDataset(Dataset):
         heads: tuple[str, ...] = ("ball", "detection", "pitch"),
         augment: bool = False,
         limit: int | None = None,
+        stride: int | None = None,
     ):
         self.root = Path(root)
         self.size = size
@@ -116,6 +117,13 @@ class SNetDataset(Dataset):
         self.index: list[tuple[str, int]] = [
             (s, i) for s, frames in self.sequences.items() for i in range(len(frames))
         ]
+        if stride and stride > 1:
+            # Subsample *across* sequences. Taking a prefix instead, as `limit`
+            # does, silently evaluates on a single 750-frame clip: the first
+            # validation run reported TN=0 because that one clip happens to have
+            # the ball visible in every frame, so the metric never tested whether
+            # the head can say "not in frame" at all.
+            self.index = self.index[::stride]
         if limit:
             self.index = self.index[:limit]
 

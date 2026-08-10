@@ -1,0 +1,62 @@
+{
+  "args": {
+    "heads": "detection",
+    "epochs": 3,
+    "batch": 8,
+    "lr": 0.001,
+    "height": 384,
+    "width": 640,
+    "stem_stride": 4,
+    "head_upsample": 4,
+    "trunk_width": 18,
+    "workers": 2,
+    "limit": null,
+    "val_limit": 1500,
+    "val_stride": 29,
+    "val_split": "valid",
+    "eval_every": 1,
+    "tag": "solo_detection"
+  },
+  "params_m": 2.1,
+  "history": [
+    {
+      "epoch": 0,
+      "seconds": 1572.1,
+      "train": {
+        "detection": 1.51269
+      },
+      "weights": {
+        "detection": 0.8485
+      },
+      "val_loss": {
+        "detection": 1.54063
+      }
+    },
+    {
+      "epoch": 1,
+      "seconds": 1587.9,
+      "train": {
+        "detection": 0.99526
+      },
+      "weights": {
+        "detection": 1.0736
+      },
+      "val_loss": {
+        "detection": 1.30496
+      }
+    },
+    {
+      "epoch": 2,
+      "seconds": 1591.6,
+      "train": {
+        "detection": 0.78622
+      },
+      "weights": {
+        "detection": 1.1913
+      },
+      "val_loss": {
+        "detection": 1.18312
+      }
+    }
+  ]
+}

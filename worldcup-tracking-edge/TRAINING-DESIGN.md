@@ -745,6 +745,93 @@ without official ones; using it here would leak.
 
 ---
 
+## 9. Steps 1-2 measured: sharing the backbone does not hurt
+
+Kaggle kernel `condados/snet-step12-solo-vs-joint`, T4, 3 epochs on the full train
+split (42,750 frames, batch 8 = 16,029 steps per run), validation on 1,500 frames
+sampled across all 58 valid sequences. Artifact:
+`output/snet_step12/step12_summary.json`.
+
+**Not trained to convergence.** Three epochs reaches F1 0.47; WASB reports 88.3 on
+*their* soccer set after 30 epochs. These numbers answer a relative question only,
+and the absolute figures are not comparable to any published result.
+
+### The result
+
+| | params | ball F1@4px | ball recall | ball val loss | detection val loss | seconds |
+|---|---|---|---|---|---|---|
+| solo ball | 1.95 M | 0.4415 | 0.3325 | 2.003 | — | 5,115 |
+| solo detection | 2.10 M | — | — | — | **1.1831** | 4,932 |
+| **joint** | **2.19 M** | **0.4668** | **0.3695** | **1.601** | **1.1794** | **5,395** |
+
+- **Detection is unchanged**: 1.1794 joint against 1.1831 solo, a 0.3% difference
+  that is noise. Adding a ball head cost the detector nothing.
+- **Ball improves**: F1 +5.7% relative, and the joint run led at *every* epoch
+  (0.395/0.429/0.467 against 0.349/0.377/0.442), which is a stronger signal than a
+  single endpoint.
+- **One model beats two on cost**: 5,395 s against 10,047 s for the two solo runs,
+  and 2.19 M parameters against 4.05 M. **1.86x cheaper to train, and it is the
+  same trunk we have to run once at inference instead of twice.**
+
+### The gain is recall, not localisation — which the headline number hides
+
+F1 at the final epoch, swept over the tolerance:
+
+| tau (px) | 1 | 2 | 3 | 4 | 6 | 8 | 12 |
+|---|---|---|---|---|---|---|---|
+| solo ball | 0.1422 | 0.3116 | 0.4005 | 0.4415 | 0.4829 | 0.4984 | 0.5159 |
+| joint | 0.1409 | 0.3073 | 0.4210 | 0.4668 | 0.5133 | 0.5289 | 0.5472 |
+
+**At tau = 1 and 2 the two are indistinguishable, and the solo run is marginally
+ahead.** The joint advantage only opens from tau = 3. Precision tells the same
+story from the other side: solo 0.6567 against joint 0.6339, while recall goes
+0.3325 to 0.3695.
+
+So the joint model does not place the ball more precisely. It *finds* it more
+often. That fits a mechanism rather than being a bare correlation: the detection
+head teaches the trunk what a player looks like, and player parts are exactly what
+WASB's own error analysis names as the dominant ball false positive. Sharing the
+backbone appears to buy discrimination against distractors, not a sharper peak.
+
+**Hedging, deliberately.** One seed per configuration. The per-epoch consistency
+and the val-loss gap (1.601 against 2.003, 20%) both point the same way, and the
+mechanism above is plausible, but I have not run a second seed and did not test the
+mechanism directly. Treat "sharing helps recall" as the hypothesis this run is
+consistent with, not as established.
+
+### Two things worth watching
+
+- **Validation loss rises while F1 rises** (ball, joint: 1.375 -> 1.400 -> 1.601
+  across epochs, F1 climbing throughout). The heatmap is getting better localised
+  and worse calibrated at the same time. Model selection is on F1 for that reason;
+  selecting on val loss here would have picked epoch 0.
+- The strided validation sampling worked: **TN is now ~100** of 1,500 frames,
+  where the earlier prefix-sampled run reported TN = 0 and never tested absence.
+
+### Cost so far
+
+Roughly 5.3 GPU-hours total, of a 30 h weekly free quota: 10 min lost to the P100
+architecture failure, 45 min on the bounded trunk comparison, 4.35 h on this run.
+
+---
+
+## 10. What is left
+
+1. **Step 3, the control**: this detection head against RF-DETR on the same split
+   and the same iGPU. Needs a proper COCO mAP evaluator, which is not written yet;
+   validation loss cannot be compared across two different objectives.
+2. **The pitch head.** Deferred from this run because its target is 33 channels at
+   384x640 — 32 MB per sample, 260 MB per batch — which would bottleneck the loader
+   and distort the timing comparison. Fix: emit keypoint targets at a coarser
+   stride and recover sub-pixel with soft-argmax, which section 8.1 already
+   requires for other reasons.
+3. **Convergence.** Everything above is three epochs. The relative conclusions are
+   what this budget can support; absolute numbers need roughly 7 GPU-hours for a
+   full run, which is affordable but should be spent once the pitch head is in.
+4. **A second seed**, before the recall finding is written up as a finding.
+
+---
+
 ## References
 
 1. V. Somers, V. Joos, A. Cioppa, S. Giancola, S. A. Ghasemzadeh, F. Magera, B. Standaert, A. M. Mansourian, X. Zhou, S. Kasaei, B. Ghanem, A. Alahi, M. Van Droogenbroeck, C. De Vleeschouwer. *SoccerNet Game State Reconstruction: End-to-End Athlete Tracking and Identification on a Minimap*. CVPRW (CVsports), 2024. <https://arxiv.org/abs/2404.11335>

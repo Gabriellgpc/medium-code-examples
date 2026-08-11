@@ -1,26 +1,24 @@
-"""Validate the pitch fix, and pull the one lever the converged run pointed at.
+"""Batch 16: does the second T4 pay, and does the bigger batch cost accuracy?
 
-Two arms at an identical budget, differing only in trunk width.
+Batch has been 8 since Step 1 for comparability, not because of a memory limit,
+and every run so far used one of the two T4s Kaggle actually allocates. Two things
+change at once if you simply switch to "batch 16 on both GPUs", so this separates
+them into two arms:
 
-The w18 arm doubles as the check that the pitch head now learns. The 12-epoch run
-left it firing about two landmarks per frame out of nine, because its loss was
-plain MSE over a target that is 99.7% zeros — predicting nothing scored 2.3e-04
-against 0.0 for predicting the truth, and Kendall weighting responded by driving
-that task's weight to 55,652. The loss is now the focal form the other two heads
-use, which scores "predict nothing" at 0.2954 instead. `evaluate_pitch` reports
-landmark error in native pixels and the fraction of landmarks actually found, so
-this time the answer does not depend on reading a loss value.
+  A  batch 16, ONE GPU   -> isolates the batch size
+  B  batch 16, TWO GPUs  -> isolates the second device
 
-The w32 arm is the lever. Twelve epochs bought +9.4% AP50 and -1.8% AP75: the
-model learned to find objects and not to place them, which is an output-stride and
-capacity limit rather than a training-budget one. Width is the cheaper of the two
-remaining knobs and now fits the latency target.
+Throughput and accuracy are reported separately on purpose. A larger batch with an
+unchanged learning rate and the same OneCycle schedule is a different optimisation
+regime, so "faster" and "better" are not the same claim and a drop in F1 would be
+the schedule, not the hardware.
 
-Four epochs each — enough to separate two architectures, and deliberately not a
-convergence run, since convergence was just measured to be worth very little.
+Baseline to compare against, same code and config at batch 8 on one GPU:
+1,861 s/epoch, ball F1@4px 0.4913 after 4 epochs, mAP 0.2740.
 """
 
 import json
+import os
 import subprocess
 import sys
 import time
@@ -29,12 +27,8 @@ from pathlib import Path
 
 SCRATCH = Path("/kaggle/tmp")
 OUT = Path("/kaggle/working")
-EPOCHS = 4
-BATCH = 8
-RUNS = [
-    ("w18", ["--trunk-width", "18", "--tag", "fixed_w18"]),
-    ("w32", ["--trunk-width", "32", "--tag", "fixed_w32"]),
-]
+EPOCHS = 3
+BATCH = 16
 
 
 def sh(*cmd, check=True):
@@ -72,45 +66,43 @@ for split in prepare_gsr.SPLITS:
         prepare_gsr.prepare(root / split, split)
 print(f"data ready in {time.time() - t0:.0f}s", flush=True)
 
+RUNS = [
+    ("b16_1gpu", {"CUDA_VISIBLE_DEVICES": "0"}),
+    ("b16_2gpu", {}),
+]
 summary = {}
-for label, extra in RUNS:
-    print(f"\n{'=' * 60}\n=== {label}\n{'=' * 60}", flush=True)
+for tag, extra_env in RUNS:
+    print(f"\n{'=' * 60}\n=== {tag}\n{'=' * 60}", flush=True)
+    env = {**os.environ, **extra_env}
     t0 = time.time()
     try:
         subprocess.run([
             sys.executable, str(scripts_dir / "train_snet.py"),
             "--heads", "ball,detection,pitch",
             "--epochs", str(EPOCHS), "--batch", str(BATCH),
+            "--trunk-width", "18",
             "--val-stride", "29", "--val-limit", "1500",
-            "--workers", "4", "--eval-every", "2", *extra,
-        ], check=True)
+            "--workers", "4", "--eval-every", "1", "--tag", tag,
+        ], check=True, env=env)
     except subprocess.CalledProcessError:
         traceback.print_exc()
-    summary[label] = {"seconds": round(time.time() - t0, 1)}
-
-# Score both on the same 500 frames Step 3 used, so the numbers slot straight in.
-for label, tag in (("w18", "fixed_w18"), ("w32", "fixed_w32")):
-    ck = OUT / "snet" / tag / "best.pt"
-    if not ck.exists():
-        continue
-    subprocess.run([
-        sys.executable, str(scripts_dir / "eval_step3.py"),
-        "--gsr", str(OUT / "gsr"), "--frames", str(SCRATCH / "gsr"), "--split", "valid",
-        "--val-stride", "87", "--val-limit", "500", "--skip-rfdetr",
-        "--snet-ckpt", f"{tag}={ck}", "--out", str(OUT / f"map_{tag}.json"),
-    ], check=False)
-    f = OUT / f"map_{tag}.json"
-    if f.exists():
-        summary[label]["map"] = json.loads(f.read_text())["results"].get(tag)
+    summary[tag] = {"wall_seconds": round(time.time() - t0, 1)}
     hist = OUT / "snet" / tag / "history.json"
     if hist.exists():
         h = json.loads(hist.read_text())["history"]
-        summary[label]["params_m"] = json.loads(hist.read_text()).get("params_m")
-        summary[label]["ball_f1"] = [e["ball_val"]["4"]["f1"] for e in h if "ball_val" in e]
-        summary[label]["pitch"] = [e.get("pitch_val") for e in h if "pitch_val" in e]
-        summary[label]["epoch_seconds"] = [e["seconds"] for e in h]
-        summary[label]["kendall"] = [e.get("weights") for e in h][-1:]
+        summary[tag]["epoch_seconds"] = [e["seconds"] for e in h]
+        summary[tag]["samples_per_s"] = [e.get("samples_per_s") for e in h]
+        summary[tag]["peak_vram_gb"] = [e.get("peak_vram_gb") for e in h]
+        summary[tag]["n_gpu"] = h[-1].get("n_gpu")
+        summary[tag]["ball_f1"] = [e["ball_val"]["4"]["f1"] for e in h if "ball_val" in e]
+        summary[tag]["pitch"] = [
+            {k: e["pitch_val"].get(k) for k in ("median_px", "detected_fraction")}
+            for e in h if "pitch_val" in e
+        ]
 
-(OUT / "capacity_summary.json").write_text(json.dumps(summary, indent=2))
-print(json.dumps(summary, indent=2)[:4000], flush=True)
+summary["_baseline_batch8_1gpu"] = {
+    "epoch_seconds": 1861, "ball_f1_after_4_epochs": 0.4913, "mAP": 0.2740,
+}
+(OUT / "batch_summary.json").write_text(json.dumps(summary, indent=2))
+print(json.dumps(summary, indent=2)[:3000], flush=True)
 print("\ndone", flush=True)

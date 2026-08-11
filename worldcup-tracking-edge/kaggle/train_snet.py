@@ -28,6 +28,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from torch import nn
 from torch.utils.data import DataLoader
 
 OUT = Path("/kaggle/working/snet")
@@ -232,6 +233,22 @@ def main() -> None:
         head_upsample=args.head_upsample, heads=heads,
     )
     model = SNetModel(cfg).to(device)
+
+    # Kaggle's NvidiaTeslaT4 allocation is TWO T4s, and quota is billed per
+    # session rather than per device, so the second GPU is free throughput.
+    #
+    # DataParallel rather than DDP, for a correctness reason and not only
+    # simplicity: DP replicates the *forward* and gathers outputs in the main
+    # process, so `compute_losses` still sees the whole batch. Every head here
+    # normalises by a batch-wide positive count, and DDP — computing the loss
+    # per shard — would silently change that normalisation.
+    net = model
+    n_gpu = torch.cuda.device_count() if device == "cuda" else 0
+    if n_gpu > 1:
+        net = nn.DataParallel(model)
+        print(f"DataParallel across {n_gpu} GPUs "
+              f"(batch {args.batch} -> {args.batch // n_gpu} per GPU)", flush=True)
+
     weighting = UncertaintyWeighting(heads).to(device)
     params = list(model.parameters()) + list(weighting.parameters())
     opt = torch.optim.AdamW(params, lr=args.lr, weight_decay=1e-4)
@@ -254,7 +271,7 @@ def main() -> None:
         for step, batch in enumerate(train_loader):
             batch = {k: v.to(device, non_blocking=True) for k, v in batch.items()}
             with torch.amp.autocast(device, enabled=device == "cuda"):
-                losses = compute_losses(model(batch["image"]), batch, heads)
+                losses = compute_losses(net(batch["image"]), batch, heads)
                 total, weights = weighting(losses)
             opt.zero_grad(set_to_none=True)
             scaler.scale(total).backward()
@@ -274,25 +291,27 @@ def main() -> None:
             # Measured rather than extrapolated: batch size has been held at 8 for
             # comparability since Step 1, not because of a memory limit, and the
             # headroom was only ever estimated from a 6 GB laptop GPU.
-            "peak_vram_gb": round(torch.cuda.max_memory_allocated() / 1e9, 2)
-            if device == "cuda" else None,
+            "peak_vram_gb": round(
+                max(torch.cuda.max_memory_allocated(d) for d in range(n_gpu)) / 1e9, 2
+            ) if n_gpu else None,
+            "n_gpu": n_gpu,
             "samples_per_s": round(
                 len(train_loader.dataset) / max(1e-6, time.time() - t0), 1),
             "train": {k: round(v / max(1, len(train_loader)), 5) for k, v in running.items()},
             "weights": {k: round(v, 4) for k, v in weights.items()},
         }
         if val_loader and (epoch + 1) % args.eval_every == 0:
-            entry["val_loss"] = validation_losses(model, val_loader, device, heads)
+            entry["val_loss"] = validation_losses(net, val_loader, device, heads)
             print(f"  epoch {epoch}: val loss " +
                   " ".join(f"{k}={v}" for k, v in entry["val_loss"].items()), flush=True)
         if val_loader and "pitch" in heads and (epoch + 1) % args.eval_every == 0:
             entry["pitch_val"] = evaluate_pitch(
-                model, val_loader, device, args.kp_stride, scale_x
+                net, val_loader, device, args.kp_stride, scale_x
             )
             print(f"  epoch {epoch}: pitch median {entry['pitch_val'].get('median_px')} px, "
                   f"detected {entry['pitch_val'].get('detected_fraction')}", flush=True)
         if val_loader and "ball" in heads and (epoch + 1) % args.eval_every == 0:
-            entry["ball_val"] = evaluate_ball(model, val_loader, device, scale_x, scale_y)
+            entry["ball_val"] = evaluate_ball(net, val_loader, device, scale_x, scale_y)
             f1 = entry["ball_val"]["4"]["f1"]
             print(f"  epoch {epoch}: ball F1@4px = {f1:.4f} "
                   f"(AP {entry['ball_val']['4']['ap']:.4f})", flush=True)
@@ -313,6 +332,9 @@ def main() -> None:
              "history": history}, indent=2))
         print(f"epoch {epoch} done in {entry['seconds']}s", flush=True)
 
+    # state_dict from the base model, never the DataParallel wrapper: the
+    # wrapper prefixes every key with "module." and the checkpoint stops
+    # loading into a plain SNetModel.
     torch.save({"model": model.state_dict(), "cfg": cfg.__dict__}, run_dir / "last.pt")
     print(f"\nbest ball F1@4px: {best:.4f}" if best >= 0 else "\nno ball eval run")
     print(f"artifacts in {run_dir}", flush=True)

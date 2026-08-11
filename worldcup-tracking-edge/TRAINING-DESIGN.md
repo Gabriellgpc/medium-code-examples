@@ -1046,6 +1046,63 @@ which is within what a single seed can produce.
 
 ---
 
+## 9.9 Batch 16 and the second GPU: DataParallel is a net loss
+
+Two arms, batch 16, differing only in device count, so the batch size and the
+second GPU are separable. Artifact: `output/snet_batch/`.
+
+| | samples/s | s/epoch | vs baseline | peak VRAM |
+|---|---|---|---|---|
+| batch 8, 1 GPU (baseline) | 23.0 | 1,861 | — | ~2 GB |
+| batch 16, 1 GPU | **26.6** | **1,610** | **1.16x** | **3.9 GB** |
+| batch 16, 2 GPUs (DataParallel) | 21.5 | 1,983 | 0.94x | 2.35 GB/device |
+
+**DataParallel made training slower: 0.81x against a single GPU.** That is the
+opposite of what I expected and it has a structural cause rather than a tuning one.
+DataParallel replicates the model to the second device *every step*, scatters the
+input, and gathers **all** outputs back to device 0. Our outputs are large — the
+ball heatmap alone is 16 x 384 x 640 x 4 bytes = 15.7 MB, the pitch head another
+32 MB — while the model is 2.27 M parameters, so per-device compute is tiny next to
+the transfer. This is the exact regime DataParallel is worst in.
+
+**VRAM is the real headline: 3.9 GB used of 15.3 GB available.** Batch has sat at 8
+since Step 1 for comparability, and the ceiling was never anywhere near. Naively
+the card would hold something near batch 48 before filling.
+
+### The accuracy comparison from this run is confounded, and should not be quoted
+
+Batch 16 for 3 epochs is **8,015 optimizer steps**; batch 8 for 4 epochs is
+**21,375** — 2.7x more. Ball F1 came out lower per *epoch* (0.462 against 0.491),
+and the pitch head's landmark detection much lower (0.245 against 0.811), but those
+runs did not see comparable numbers of updates and the learning rate was unchanged.
+Nothing about batch size can be concluded from it. A clean version needs either an
+equal-step budget or the linear learning-rate scaling rule applied.
+
+### This reverses the position I took on DDP
+
+I argued earlier that DataParallel was the right choice partly because
+`compute_losses` sees the whole batch, and that DDP would only be worth its
+complexity if DataParallel scaled poorly. **DataParallel scaled poorly, and for a
+reason DDP specifically avoids:** DDP computes the loss on each rank and
+all-reduces *gradients* (9 MB for 2.27 M parameters) instead of gathering ~50 MB of
+activations and re-broadcasting the model every step.
+
+The loss-normalisation objection survives but shrinks on inspection: per-rank
+normalisation by that rank's positive count gives an average of per-shard
+normalised losses rather than a batch-normalised one. Different, defensible, and
+worth measuring rather than avoiding.
+
+So the trigger named for the Lightning migration has fired in favour of it.
+
+### What to do with two GPUs meanwhile
+
+Not split one run across them. Run **two experiments concurrently**, one per device
+via `CUDA_VISIBLE_DEVICES` — which doubles experiment throughput with none of the
+transfer overhead, and is what the multi-arm kernels have effectively been doing in
+sequence.
+
+---
+
 ## 10. What is left
 
 1. **Step 3, the control**: this detection head against RF-DETR on the same split

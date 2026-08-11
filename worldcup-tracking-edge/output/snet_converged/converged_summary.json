@@ -1,0 +1,87 @@
+{
+  "train_seconds": 19820.7,
+  "epochs": 12,
+  "ball_f1_at_4px": [
+    0.3596,
+    0.4957,
+    0.4876,
+    0.4989,
+    0.5069,
+    0.4957
+  ],
+  "val_loss_per_eval": [
+    {
+      "ball": 1.41173,
+      "detection": 2.17407,
+      "pitch": 0.00019
+    },
+    {
+      "ball": 1.46227,
+      "detection": 2.02013,
+      "pitch": 8e-05
+    },
+    {
+      "ball": 1.42462,
+      "detection": 1.93511,
+      "pitch": 6e-05
+    },
+    {
+      "ball": 1.51919,
+      "detection": 1.91861,
+      "pitch": 6e-05
+    },
+    {
+      "ball": 1.70504,
+      "detection": 1.91137,
+      "pitch": 6e-05
+    },
+    {
+      "ball": 1.74772,
+      "detection": 1.89374,
+      "pitch": 6e-05
+    }
+  ],
+  "epoch_seconds": [
+    1641.1,
+    1611.2,
+    1602.0,
+    1597.8,
+    1594.9,
+    1610.3,
+    1602.6,
+    1586.5,
+    1593.9,
+    1600.2,
+    1607.9,
+    1605.0
+  ],
+  "kendall_weights": [
+    {
+      "ball": 3.7557,
+      "detection": 1.1402,
+      "pitch": 55652.4727
+    }
+  ],
+  "map": {
+    "snet_converged": {
+      "mAP": 0.2714,
+      "mAP_50": 0.5975,
+      "mAP_75": 0.1994,
+      "mAP_small": 0.1587,
+      "mAP_medium": 0.2695,
+      "mAP_large": 0.3737,
+      "AR_1": 0.212,
+      "AR_10": 0.3667,
+      "AR_100": 0.4182,
+      "AR_small": 0.1924,
+      "AR_medium": 0.4182,
+      "AR_large": 0.5138,
+      "n_detections": 48602,
+      "per_class_AP": {
+        "player": 0.3563,
+        "referee": 0.1527,
+        "goalkeeper": 0.3054
+      }
+    }
+  }
+}

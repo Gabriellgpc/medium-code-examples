@@ -932,6 +932,62 @@ genuine domain gap, not a shuffled one.
 
 ---
 
+## 9.7 The converged run: training budget was not the constraint
+
+12 epochs, all three heads, full train split, 5.5 GPU-hours on a T4 (1,600 s per
+epoch, remarkably steady). Artifacts: `output/snet_converged/`.
+
+### 4x the training bought very little
+
+| | 3 epochs | 12 epochs | change |
+|---|---|---|---|
+| ball F1@4px | 0.4686 | **0.5069** | +8.2% |
+| detection mAP | 0.2574 | **0.2714** | +5.4% |
+| detection AP50 | 0.5463 | **0.5975** | +9.4% |
+| detection AP75 | 0.2031 | **0.1994** | **−1.8%** |
+
+**The prediction made before the run held exactly.** AP50 improved while AP75 did
+not move, so the model is finding objects better and placing boxes no better. The
+gap to RF-DETR is a resolution and output-stride limit, not a training-budget one,
+and more epochs will not close it. The levers that would are trunk width (now
+affordable at 25.1 ms) and input resolution.
+
+Ball F1 across evaluations (epochs 1, 3, 5, 7, 9, 11): 0.360, 0.496, 0.488, 0.499,
+**0.507**, 0.496. **Plateaued after epoch 3.** Per class, goalkeeper improved most
+(0.259 → 0.305) and referee regressed (0.173 → 0.153).
+
+### Two defects this run exposed
+
+**1. The pitch objective is badly scaled, and uncertainty weighting amplified it
+rather than protecting against it.**
+
+The keypoint target is 33 channels of 96x160 that is about 99.95% zeros, and
+`keypoint_loss` is plain MSE. Predicting nothing scores almost perfectly: the
+validation loss reads **6e-05**. Kendall weighting then did exactly what it is
+designed to do and drove that task's weight to **55,652** to bring its contribution
+in line (55,652 x 6e-05 ≈ 3.3, against ball's 3.76 x 1.75 ≈ 6.6). It balanced the
+*contribution* by amplifying a nearly-flat objective, which mostly amplifies noise.
+
+The head is not fully dead — it fires about 2 landmarks per frame against the ~9
+that are visible — but it is weak. **Learned loss weighting is not a defence
+against a badly-normalised loss; it chases one.** The fix is the same one the ball
+head already needed: normalise by the positive count, or use the focal-Gaussian
+form §8.2 listed as an ablation and which is now clearly the right default.
+
+**2. `pitch_lines` is an unsupervised head.**
+
+The model creates a 26-channel line head, and nothing ever gives it a target:
+`SNetDataset` emits `kp_heat` but no line target, and `compute_losses` never
+references it. It has been receiving no gradient since it was written, and it
+outputs roughly 0.5 everywhere — 41% of its pixels clear the threshold.
+
+It has also been inside **every latency measurement**, including the headline
+20.7 ms. That number is therefore conservative rather than flattering, which is the
+better direction to be wrong in, but it is still wrong. Either wire it to the
+target `build_pitch_lines` already produces, or delete the head.
+
+---
+
 ## 10. What is left
 
 1. **Step 3, the control**: this detection head against RF-DETR on the same split

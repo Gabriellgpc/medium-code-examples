@@ -988,6 +988,64 @@ target `build_pitch_lines` already produces, or delete the head.
 
 ---
 
+## 9.8 The pitch fix landed, and capacity beats training budget
+
+Two arms, four epochs each, identical except trunk width. Artifact:
+`output/snet_capacity/`.
+
+### The pitch head now works — at finding, not yet at placing
+
+| | before (12 epochs, MSE) | after (4 epochs, focal) |
+|---|---|---|
+| landmarks detected | ~2 of 9 | **81%** |
+| learned Kendall weight | **55,652** | **137** |
+
+The weight collapsing from 55,652 to 137 is the clean confirmation that the loss
+is now on the same scale as the other two heads, and that the old number was a
+scaling bug being chased rather than a property of the task.
+
+**But localisation is still three times outside budget.** Median landmark error is
+**8.78 native px** (p90 24.5), against §6.6's requirement of 2–3 px, and only
+**11.5%** of landmarks land inside it. Read against §6.6's table, a homography
+fitted from keypoints this noisy would put players roughly a metre off with a
+meaningful tail. The head finds the landmarks and does not yet place them.
+
+So the pitch head is unblocked, not finished. That is a different and better
+problem than the one before it.
+
+### Capacity buys exactly what training budget could not
+
+| | w18 | w32 | change |
+|---|---|---|---|
+| params | 2.27 M | 6.32 M | 2.8x |
+| mAP | 0.2740 | **0.2865** | +4.6% |
+| AP50 | 0.6029 | 0.6103 | +1.2% |
+| **AP75** | 0.2005 | **0.2280** | **+13.7%** |
+| **mAP small** | 0.1534 | **0.1789** | **+16.6%** |
+| ball F1@4px | 0.4913 | **0.5104** | +3.9% |
+| seconds/epoch | 1861 | 1872 | **+0.6%** |
+
+**The diagnosis from §9.7 is confirmed by its converse.** Twelve epochs moved AP50
+(+9.4%) and not AP75 (−1.8%); width moves AP75 (+13.7%) and small objects (+16.6%)
+and barely touches AP50 (+1.2%). Training budget buys detection rate, capacity buys
+precision. They are different levers and this is the run that separates them.
+
+**And width is free in training time** — 1,872 s against 1,861 s per epoch, a 0.6%
+difference. At this size the run is not compute-bound, so 2.8x the parameters costs
+nothing to train.
+
+The sharpest framing: **w32 at 4 epochs (mAP 0.2865) beats w18 at 12 epochs
+(0.2714) by 5.6%, at a third of the training.**
+
+The cost is inference latency, 32.4 ms against 20.8 ms — though those two
+measurements came from different sweeps and the iGPU showed run-to-run variance,
+so that pair needs re-measuring back to back before it is quoted.
+
+Caveats: one seed per arm; referee regressed slightly in w32 (0.154 against 0.164)
+which is within what a single seed can produce.
+
+---
+
 ## 10. What is left
 
 1. **Step 3, the control**: this detection head against RF-DETR on the same split

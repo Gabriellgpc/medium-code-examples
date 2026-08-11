@@ -149,7 +149,6 @@ class SNetConfig:
     head_channels: int = 32
     n_classes: int = 3                 # player, referee, goalkeeper (ball has its own head)
     n_keypoints: int = 33              # LANDMARKS; see TRAINING-DESIGN section 8.1 on expanding it
-    n_lines: int = 26                  # distinct pitch line types in SN-GSR
     in_frames: int = 3                 # temporal window stacked on channels
     head_upsample: int = 4             # ball head upsample (see Head docstring)
     # Pitch keypoints need no decoder. Measured: soft-argmax on a sigma=2 Gaussian
@@ -319,7 +318,12 @@ class SNetModel(nn.Module):
         if "pitch" in cfg.heads:
             pu = cfg.pitch_upsample
             self.heads["pitch"] = Head(c, mid, cfg.n_keypoints, upsample=pu)
-            self.heads["pitch_lines"] = Head(c, mid, cfg.n_lines, upsample=pu)
+            # No line head. It existed for 26 channels with no target anywhere in
+            # the pipeline, took no gradient, and sat inside every latency
+            # measurement. Pitch supervision comes from landmarks projected
+            # through the athlete homography, which the solver consumes directly;
+            # lines would only earn their place alongside a PnL-style refinement,
+            # and build_pitch_lines() still produces the data if that gets built.
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         feats = self.backbone(x)

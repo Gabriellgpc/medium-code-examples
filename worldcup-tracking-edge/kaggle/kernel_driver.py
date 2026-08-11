@@ -1,19 +1,23 @@
-"""The converged run: all three heads, full split, a real training budget.
+"""Validate the pitch fix, and pull the one lever the converged run pointed at.
 
-Everything before this was bounded on purpose — three epochs, enough to answer
-relative questions (does sharing hurt, what did the bug cost, how does the head
-compare to RF-DETR) without spending a week of quota. This run asks the absolute
-question the others deliberately did not: what does the architecture reach.
+Two arms at an identical budget, differing only in trunk width.
 
-The pitch head joins here for the first time. It was deferred because its target
-was 33 channels at full resolution, 32 MB per sample; rasterising at trunk stride
-instead costs 2.0 MB and still decodes to a median 0.66 native px, inside the
-budget. That change also removed the pitch decoder, which took the whole model
-from 30.6 ms to 20.7 ms on the target iGPU.
+The w18 arm doubles as the check that the pitch head now learns. The 12-epoch run
+left it firing about two landmarks per frame out of nine, because its loss was
+plain MSE over a target that is 99.7% zeros — predicting nothing scored 2.3e-04
+against 0.0 for predicting the truth, and Kendall weighting responded by driving
+that task's weight to 55,652. The loss is now the focal form the other two heads
+use, which scores "predict nothing" at 0.2954 instead. `evaluate_pitch` reports
+landmark error in native pixels and the fraction of landmarks actually found, so
+this time the answer does not depend on reading a loss value.
 
-Trunk width stays at 18. w32 is now affordable (25.1 ms, 39.9 FPS) and is the
-obvious next lever, but changing capacity and training budget in the same run
-would leave neither attributable.
+The w32 arm is the lever. Twelve epochs bought +9.4% AP50 and -1.8% AP75: the
+model learned to find objects and not to place them, which is an output-stride and
+capacity limit rather than a training-budget one. Width is the cheaper of the two
+remaining knobs and now fits the latency target.
+
+Four epochs each — enough to separate two architectures, and deliberately not a
+convergence run, since convergence was just measured to be worth very little.
 """
 
 import json
@@ -25,8 +29,12 @@ from pathlib import Path
 
 SCRATCH = Path("/kaggle/tmp")
 OUT = Path("/kaggle/working")
-EPOCHS = 12
+EPOCHS = 4
 BATCH = 8
+RUNS = [
+    ("w18", ["--trunk-width", "18", "--tag", "fixed_w18"]),
+    ("w32", ["--trunk-width", "32", "--tag", "fixed_w32"]),
+]
 
 
 def sh(*cmd, check=True):
@@ -39,7 +47,6 @@ def sh(*cmd, check=True):
 
 SCRATCH.mkdir(parents=True, exist_ok=True)
 sh("nvidia-smi", "--query-gpu=name,memory.total", "--format=csv", check=False)
-sh("nproc", check=False)
 sh(sys.executable, "-m", "pip", "install", "-q", "loguru", "albumentations")
 
 
@@ -65,44 +72,45 @@ for split in prepare_gsr.SPLITS:
         prepare_gsr.prepare(root / split, split)
 print(f"data ready in {time.time() - t0:.0f}s", flush=True)
 
-print(f"\n{'=' * 60}\n=== converged: ball + detection + pitch, {EPOCHS} epochs\n{'=' * 60}",
-      flush=True)
-t0 = time.time()
-try:
-    subprocess.run([
-        sys.executable, str(scripts_dir / "train_snet.py"),
-        "--heads", "ball,detection,pitch",
-        "--epochs", str(EPOCHS), "--batch", str(BATCH),
-        "--val-stride", "29", "--val-limit", "1500",
-        "--workers", "4", "--eval-every", "2",
-        "--tag", "converged_all_heads",
-    ], check=True)
-except subprocess.CalledProcessError:
-    traceback.print_exc()
-train_seconds = round(time.time() - t0, 1)
+summary = {}
+for label, extra in RUNS:
+    print(f"\n{'=' * 60}\n=== {label}\n{'=' * 60}", flush=True)
+    t0 = time.time()
+    try:
+        subprocess.run([
+            sys.executable, str(scripts_dir / "train_snet.py"),
+            "--heads", "ball,detection,pitch",
+            "--epochs", str(EPOCHS), "--batch", str(BATCH),
+            "--val-stride", "29", "--val-limit", "1500",
+            "--workers", "4", "--eval-every", "2", *extra,
+        ], check=True)
+    except subprocess.CalledProcessError:
+        traceback.print_exc()
+    summary[label] = {"seconds": round(time.time() - t0, 1)}
 
-# Score the finished model the same way Step 3 scored the bounded one.
-ck = OUT / "snet" / "converged_all_heads" / "best.pt"
-if ck.exists():
-    print(f"\n{'=' * 60}\n=== mAP on the same 500 frames as Step 3\n{'=' * 60}", flush=True)
+# Score both on the same 500 frames Step 3 used, so the numbers slot straight in.
+for label, tag in (("w18", "fixed_w18"), ("w32", "fixed_w32")):
+    ck = OUT / "snet" / tag / "best.pt"
+    if not ck.exists():
+        continue
     subprocess.run([
         sys.executable, str(scripts_dir / "eval_step3.py"),
         "--gsr", str(OUT / "gsr"), "--frames", str(SCRATCH / "gsr"), "--split", "valid",
         "--val-stride", "87", "--val-limit", "500", "--skip-rfdetr",
-        "--snet-ckpt", f"snet_converged={ck}",
-        "--out", str(OUT / "converged_map.json"),
+        "--snet-ckpt", f"{tag}={ck}", "--out", str(OUT / f"map_{tag}.json"),
     ], check=False)
+    f = OUT / f"map_{tag}.json"
+    if f.exists():
+        summary[label]["map"] = json.loads(f.read_text())["results"].get(tag)
+    hist = OUT / "snet" / tag / "history.json"
+    if hist.exists():
+        h = json.loads(hist.read_text())["history"]
+        summary[label]["params_m"] = json.loads(hist.read_text()).get("params_m")
+        summary[label]["ball_f1"] = [e["ball_val"]["4"]["f1"] for e in h if "ball_val" in e]
+        summary[label]["pitch"] = [e.get("pitch_val") for e in h if "pitch_val" in e]
+        summary[label]["epoch_seconds"] = [e["seconds"] for e in h]
+        summary[label]["kendall"] = [e.get("weights") for e in h][-1:]
 
-report = {"train_seconds": train_seconds, "epochs": EPOCHS}
-hist = OUT / "snet" / "converged_all_heads" / "history.json"
-if hist.exists():
-    h = json.loads(hist.read_text())["history"]
-    report["ball_f1_at_4px"] = [e["ball_val"]["4"]["f1"] for e in h if "ball_val" in e]
-    report["val_loss_per_eval"] = [e["val_loss"] for e in h if "val_loss" in e]
-    report["epoch_seconds"] = [e["seconds"] for e in h]
-    report["kendall_weights"] = [e.get("weights") for e in h][-1:]
-if (OUT / "converged_map.json").exists():
-    report["map"] = json.loads((OUT / "converged_map.json").read_text())["results"]
-(OUT / "converged_summary.json").write_text(json.dumps(report, indent=2))
-print(json.dumps(report, indent=2)[:3000], flush=True)
+(OUT / "capacity_summary.json").write_text(json.dumps(summary, indent=2))
+print(json.dumps(summary, indent=2)[:4000], flush=True)
 print("\ndone", flush=True)

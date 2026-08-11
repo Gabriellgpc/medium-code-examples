@@ -20,15 +20,15 @@
       ],
       "trunk_width": 18,
       "head_upsample": 4,
-      "params_m": 2.34,
+      "params_m": 2.27,
       "output_hw": [
         384,
         640
       ],
-      "median_ms": 20.72,
-      "p10_ms": 19.37,
-      "p90_ms": 24.01,
-      "fps": 48.27,
+      "median_ms": 20.76,
+      "p10_ms": 18.49,
+      "p90_ms": 32.7,
+      "fps": 48.16,
       "native_px_per_output_px": 3.0
     },
     {
@@ -40,15 +40,15 @@
       ],
       "trunk_width": 32,
       "head_upsample": 4,
-      "params_m": 6.46,
+      "params_m": 6.32,
       "output_hw": [
         384,
         640
       ],
-      "median_ms": 25.08,
-      "p10_ms": 23.97,
-      "p90_ms": 28.95,
-      "fps": 39.87,
+      "median_ms": 32.41,
+      "p10_ms": 26.84,
+      "p90_ms": 38.73,
+      "fps": 30.86,
       "native_px_per_output_px": 3.0
     },
     {
@@ -60,15 +60,15 @@
       ],
       "trunk_width": 18,
       "head_upsample": 1,
-      "params_m": 2.34,
+      "params_m": 2.26,
       "output_hw": [
         384,
         640
       ],
-      "median_ms": 216.0,
-      "p10_ms": 204.55,
-      "p90_ms": 222.45,
-      "fps": 4.63,
+      "median_ms": 230.2,
+      "p10_ms": 203.78,
+      "p90_ms": 264.97,
+      "fps": 4.34,
       "native_px_per_output_px": 3.0
     },
     {
@@ -80,15 +80,15 @@
       ],
       "trunk_width": 18,
       "head_upsample": 1,
-      "params_m": 2.34,
+      "params_m": 2.26,
       "output_hw": [
         96,
         160
       ],
-      "median_ms": 17.28,
-      "p10_ms": 16.02,
-      "p90_ms": 20.28,
-      "fps": 57.89,
+      "median_ms": 20.43,
+      "p10_ms": 19.5,
+      "p90_ms": 22.13,
+      "fps": 48.94,
       "native_px_per_output_px": 12.0
     }
   ]

@@ -45,7 +45,10 @@ def locate_package() -> None:
 locate_package()
 
 from soccernet_tracking_edge.core.snet_data import SNetDataset  # noqa: E402
-from soccernet_tracking_edge.core.snet_eval import ball_metrics_sweep  # noqa: E402
+from soccernet_tracking_edge.core.snet_eval import (  # noqa: E402
+    ball_metrics_sweep,
+    keypoint_metrics,
+)
 from soccernet_tracking_edge.core.snet_loss import (  # noqa: E402
     UncertaintyWeighting,
     compute_losses,
@@ -83,7 +86,7 @@ def check_device() -> str:
 def build_loaders(args, heads):
     common = dict(
         size=(args.height, args.width), heads=heads,
-        ball_stride=1, det_stride=args.stem_stride,
+        ball_stride=1, det_stride=args.stem_stride, kp_stride=args.kp_stride,
     )
     train = SNetDataset(
         SCRATCH / "train", GSR / "train" / "detection.json",
@@ -152,6 +155,50 @@ def evaluate_ball(model, loader, device, scale_x: float, scale_y: float) -> dict
     return ball_metrics_sweep(records)
 
 
+@torch.no_grad()
+def evaluate_pitch(model, loader, device, kp_stride: int, scale_x: float) -> dict:
+    """Landmark localisation error in native pixels, and how many are found.
+
+    The 12-epoch run showed why this is needed: the pitch head's validation loss
+    read 6e-05 while the head was firing about two landmarks per frame out of nine.
+    A loss that small on a target that is 99.95% zeros says nothing about whether
+    anything was learned. This decodes predictions the way inference will —
+    soft-argmax per channel — and scores them against the ground-truth peak.
+
+    ``detected`` is the fraction of supervised landmarks the head actually emits a
+    peak for; the error statistics are conditioned on those, so both numbers have
+    to be read together. A head that fires once, perfectly, would show a superb
+    median and a terrible detection rate.
+    """
+    model.eval()
+    errors, n_gt, n_found = [], 0, 0
+    for batch in loader:
+        images = batch["image"].to(device, non_blocking=True)
+        pred = torch.sigmoid(model(images)["pitch"]).cpu().numpy()
+        truth = batch["kp_heat"].numpy()
+        valid = batch["kp_valid"].numpy()
+        for i in range(pred.shape[0]):
+            if valid[i] <= 0:
+                continue
+            for k in range(truth.shape[1]):
+                gt = soft_argmax(truth[i, k], threshold=0.5)
+                if gt is None:
+                    continue
+                n_gt += 1
+                got = soft_argmax(pred[i, k], threshold=0.5)
+                if got is None:
+                    continue
+                n_found += 1
+                # heatmap px -> network px -> native px
+                d = np.hypot(got[0] - gt[0], got[1] - gt[1]) * kp_stride / scale_x
+                errors.append(d)
+    model.train()
+    out = keypoint_metrics(np.asarray(errors))
+    out["landmarks_supervised"] = n_gt
+    out["detected_fraction"] = round(n_found / n_gt, 4) if n_gt else 0.0
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--heads", default="ball", help="comma-separated: ball,detection,pitch")
@@ -162,6 +209,7 @@ def main() -> None:
     ap.add_argument("--width", type=int, default=640)
     ap.add_argument("--stem-stride", type=int, default=4)
     ap.add_argument("--head-upsample", type=int, default=4)
+    ap.add_argument("--kp-stride", type=int, default=4)
     ap.add_argument("--trunk-width", type=int, default=18)
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--limit", type=int, default=None, help="cap training samples")
@@ -223,6 +271,13 @@ def main() -> None:
         entry = {
             "epoch": epoch,
             "seconds": round(time.time() - t0, 1),
+            # Measured rather than extrapolated: batch size has been held at 8 for
+            # comparability since Step 1, not because of a memory limit, and the
+            # headroom was only ever estimated from a 6 GB laptop GPU.
+            "peak_vram_gb": round(torch.cuda.max_memory_allocated() / 1e9, 2)
+            if device == "cuda" else None,
+            "samples_per_s": round(
+                len(train_loader.dataset) / max(1e-6, time.time() - t0), 1),
             "train": {k: round(v / max(1, len(train_loader)), 5) for k, v in running.items()},
             "weights": {k: round(v, 4) for k, v in weights.items()},
         }
@@ -230,6 +285,12 @@ def main() -> None:
             entry["val_loss"] = validation_losses(model, val_loader, device, heads)
             print(f"  epoch {epoch}: val loss " +
                   " ".join(f"{k}={v}" for k, v in entry["val_loss"].items()), flush=True)
+        if val_loader and "pitch" in heads and (epoch + 1) % args.eval_every == 0:
+            entry["pitch_val"] = evaluate_pitch(
+                model, val_loader, device, args.kp_stride, scale_x
+            )
+            print(f"  epoch {epoch}: pitch median {entry['pitch_val'].get('median_px')} px, "
+                  f"detected {entry['pitch_val'].get('detected_fraction')}", flush=True)
         if val_loader and "ball" in heads and (epoch + 1) % args.eval_every == 0:
             entry["ball_val"] = evaluate_ball(model, val_loader, device, scale_x, scale_y)
             f1 = entry["ball_val"]["4"]["f1"]

@@ -20,7 +20,8 @@ BALL_POS_FLOOR = 21.0
 
 
 def wasb_focal_loss(
-    logits: torch.Tensor, target: torch.Tensor, beta: float = 2.0, eps: float = 1e-4
+    logits: torch.Tensor, target: torch.Tensor, beta: float = 2.0, eps: float = 1e-4,
+    pos_floor: float = BALL_POS_FLOOR,
 ) -> torch.Tensor:
     """WASB Eq. 3: focal loss generalised to real-valued targets.
 
@@ -50,7 +51,7 @@ def wasb_focal_loss(
     s = torch.sigmoid(logits).clamp(eps, 1.0 - eps)
     modulating = (target - s).abs().pow(beta)
     log_terms = (1.0 - target) * torch.log(1.0 - s) + target * torch.log(s)
-    n_pos = target.gt(0).float().sum().clamp(min=BALL_POS_FLOOR)
+    n_pos = target.gt(0).float().sum().clamp(min=pos_floor)
     return -(modulating * log_terms).sum() / n_pos
 
 
@@ -107,14 +108,23 @@ def ball_loss(
 
 
 def keypoint_loss(
-    logits: torch.Tensor, target: torch.Tensor, valid: torch.Tensor | None = None
+    logits: torch.Tensor, target: torch.Tensor, valid: torch.Tensor | None = None,
+    use_focal: bool = True,
 ) -> torch.Tensor:
-    """L2 on the heatmaps, PnLCalib's published choice.
+    """Gaussian-heatmap loss for the pitch landmarks.
 
-    PnLCalib regresses heatmaps directly with an l2 norm rather than a focal
-    objective. We keep that as the baseline so the first number is comparable to
-    a published method; swapping in ``wasb_focal_loss`` is a one-line ablation and
-    is listed as one in TRAINING-DESIGN section 8.2.
+    **Focal by default, not PnLCalib's l2 — because l2 here is degenerate.** The
+    target is 33 channels of 96x160 that is about 99.95% zeros, so predicting
+    nothing scores a mean-squared error of 6e-05. Measured, not hypothetical: the
+    12-epoch run reported exactly that, and Kendall weighting responded by driving
+    this task's weight to 55,652 to bring its contribution into line. Learned loss
+    weighting does not protect against a badly-normalised loss; it chases one, and
+    what it amplified was mostly noise.
+
+    Normalising by the positive count is the same fix the ball head needed, and the
+    focal form is the one already used for the ball and the detection centres, so
+    all three heads now share a scale. ``use_focal=False`` keeps the published l2
+    for comparison.
 
     ``valid`` (B,) marks which *frames* carry pitch supervision at all, and it is
     not the same thing as a landmark being out of frame. An out-of-frame landmark
@@ -123,12 +133,17 @@ def keypoint_loss(
     and supervising it as all-zero would actively teach the head that a pitch
     full of landmarks contains none. Those frames are dropped instead.
     """
-    pred = torch.sigmoid(logits)
-    if valid is None:
-        return F.mse_loss(pred, target)
-    w = valid.view(-1, 1, 1, 1)
-    denom = w.expand_as(pred).sum().clamp(min=1.0)
-    return ((pred - target) ** 2 * w).sum() / denom
+    if valid is not None:
+        keep = valid.view(-1) > 0
+        if not bool(keep.any()):
+            return logits.sum() * 0.0
+        logits, target = logits[keep], target[keep]
+
+    if not use_focal:
+        return F.mse_loss(torch.sigmoid(logits), target)
+    # ~9 visible landmarks at sigma=2 is a few hundred positive pixels; the
+    # ball-sized floor would over-weight a frame where none are supervised.
+    return wasb_focal_loss(logits, target, beta=2.0, pos_floor=200.0)
 
 
 class UncertaintyWeighting(nn.Module):

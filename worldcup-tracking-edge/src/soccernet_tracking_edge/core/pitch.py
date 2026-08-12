@@ -143,3 +143,57 @@ def on_pitch(pitch_pts: np.ndarray, margin: float = 5.0) -> np.ndarray:
     return (np.abs(pitch_pts[:, 0]) <= _HALF_L + margin) & (
         np.abs(pitch_pts[:, 1]) <= _HALF_W + margin
     )
+
+
+# --- expanded landmark set --------------------------------------------------
+#
+# Section 6.6 measured that a homography needs eight or more well-spread
+# correspondences, and that the median broadcast frame shows only nine of the 33
+# landmarks above. The pipeline has been operating on that boundary, and the
+# residual error after threshold tuning and temporal smoothing is concentrated in
+# camera positions where too few landmarks are visible at all.
+#
+# The principle for what gets added is *distinguishability*, not count. Points
+# spaced along a plain straight line are worthless here: the network would have to
+# tell the third from the fourth, and a swapped correspondence damages the fit more
+# than a missing one. Circle samples are distinguishable by their angular position
+# relative to the circle and the lines that cross it, which is the construction
+# PnLCalib uses to get from a handful of intersections to a usable set.
+
+_CIRCLE_SAMPLE_DEG = (30, 60, 120, 150, 210, 240, 300, 330)  # 0/90/180/270 already exist
+_PENALTY_ARC_R = CENTER_CIRCLE_R
+
+
+def _circle_points() -> dict[str, tuple[float, float]]:
+    out = {}
+    for deg in _CIRCLE_SAMPLE_DEG:
+        rad = np.deg2rad(deg)
+        out[f"circle_{deg:03d}"] = (
+            round(CENTER_CIRCLE_R * np.cos(rad), 4),
+            round(CENTER_CIRCLE_R * np.sin(rad), 4),
+        )
+    return out
+
+
+def _penalty_arc_points() -> dict[str, tuple[float, float]]:
+    """Where each penalty arc meets its penalty-area line, plus the arc's apex.
+
+    The arc is centred on the penalty spot with the same radius as the centre
+    circle; only the part outside the penalty area is painted, so the two points
+    where it crosses the box line are real, visible, and unambiguous.
+    """
+    out = {}
+    box_x = PENALTY_AREA_DEPTH - PENALTY_SPOT_DIST          # 16.5 - 11 = 5.5
+    dy = float(np.sqrt(_PENALTY_ARC_R**2 - box_x**2))       # 7.31
+    for side, sign in (("l", -1.0), ("r", 1.0)):
+        spot_x = sign * (_HALF_L - PENALTY_SPOT_DIST)
+        line_x = sign * (_HALF_L - PENALTY_AREA_DEPTH)
+        out[f"{side}_arc_top"] = (round(line_x, 4), round(-dy, 4))
+        out[f"{side}_arc_bottom"] = (round(line_x, 4), round(dy, 4))
+        out[f"{side}_arc_apex"] = (round(spot_x + sign * _PENALTY_ARC_R, 4), 0.0)
+    return out
+
+
+EXPANDED_LANDMARKS: dict[str, tuple[float, float]] = {
+    **LANDMARKS, **_circle_points(), **_penalty_arc_points(),
+}

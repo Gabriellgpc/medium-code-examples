@@ -1335,6 +1335,63 @@ because these are four contiguous sequences rather than 500 frames strided acros
 
 ---
 
+## 9.14 The expanded landmark set: measured before paying for it
+
+47 landmarks against 33, evaluated on 1,418 valid frames from geometry alone — no
+model, no inference, no training. Artifact: `output/snet_landmarks/`.
+
+The 14 additions are chosen for **distinguishability, not count**: eight centre-circle
+samples at 30° spacing, four points where each penalty arc crosses its penalty-area
+line, and the two arc apexes. Points spaced along a plain straight line were
+deliberately excluded — the network would have to tell the third from the fourth,
+and a swapped correspondence damages the fit more than a missing one.
+
+### Visibility: the fragile-regime fraction collapses
+
+| set | median visible | p10 | p90 | frames < 4 | **frames < 8** |
+|---|---|---|---|---|---|
+| 33 | 9 | 5 | 12 | 4.65% | **41.40%** |
+| **47** | **14** | 8 | 19 | **0.49%** | **6.21%** |
+
+The median goes 9 → 14, but the number that matters is the last column. §6.6
+identified eight well-spread correspondences as the safety floor, and **41% of
+frames were below it**. With the expanded set, 6% are.
+
+### In metres, perturbing the landmarks each frame really shows
+
+| σ (px) | 33 landmarks | 47 landmarks |
+|---|---|---|
+| 0.0 | 0.000 m — **3.1% >5 m** | 0.000 m — **0.0%** |
+| 1.0 | 0.100 m — 3.4% | 0.065 m — 0.0% |
+| 3.0 | 0.299 m — 3.7% | **0.194 m — 0.1%** |
+| 5.0 | 0.502 m — 4.5% | 0.318 m — 0.4% |
+| 8.0 | 0.800 m — 6.2% | **0.527 m — 1.4%** |
+
+**The 33-point set fails on 3.1% of frames with perfect keypoints.** That is pure
+geometric degeneracy — frames where the visible landmarks are too few or too nearly
+collinear to determine a homography at all, and no amount of model accuracy repairs
+it. The expanded set takes that floor to **0.0%**.
+
+At a realistic σ = 3 px the catastrophic rate falls roughly thirty-fold, 3.7% → 0.1%.
+
+### The quantified prediction this makes
+
+The pitch head currently localises landmarks at a median 7–9 px. Reading the σ = 8
+row: the 33-point set predicts 6.2% beyond tolerance, and the measured end-to-end
+rate is ~8% — close enough that the model is behaving about as the geometry says it
+should. The same row for 47 landmarks says **1.4%**.
+
+So retraining with the expanded set should take the >5 m rate from ~8% to roughly
+1.5–2%, *if* the head localises the new points as well as the old ones.
+
+**That condition is the risk, and it is a real one.** Corners and line intersections
+are crisp; a sample point on a circle at 30° has no local feature marking it, and
+its position must be inferred from the arc's shape. The new landmarks may well be
+harder, and the measured payoff would then be smaller than the geometry promises.
+The prediction above is what the next run gets checked against.
+
+---
+
 ## 10. What is left
 
 1. **Step 3, the control**: this detection head against RF-DETR on the same split

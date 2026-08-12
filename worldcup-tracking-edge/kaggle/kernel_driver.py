@@ -1,6 +1,5 @@
-"""Temporal smoothing of the homography, on contiguous frames."""
+"""Measure the ceiling of the expanded landmark set before paying for a retrain."""
 
-import json
 import subprocess
 import sys
 import time
@@ -8,18 +7,8 @@ from pathlib import Path
 
 SCRATCH = Path("/kaggle/tmp")
 OUT = Path("/kaggle/working")
-
-
-def sh(*cmd, check=True):
-    print("$", " ".join(str(c) for c in cmd), flush=True)
-    try:
-        subprocess.run([str(c) for c in cmd], check=check)
-    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
-        print(f"  (non-fatal: {exc})", flush=True)
-
-
 SCRATCH.mkdir(parents=True, exist_ok=True)
-sh(sys.executable, "-m", "pip", "install", "-q", "loguru", "albumentations")
+subprocess.run([sys.executable, "-m", "pip", "install", "-q", "loguru"], check=False)
 
 
 def locate(marker: str) -> Path:
@@ -30,12 +19,15 @@ def locate(marker: str) -> Path:
 
 
 pkg_dir = locate("soccernet_tracking_edge/__init__.py").parent
-scripts_dir = locate("eval_temporal.py")
+scripts_dir = locate("measure_landmark_ceiling.py")
 sys.path.insert(0, str(pkg_dir))
 sys.path.insert(0, str(scripts_dir))
 
 import prepare_gsr  # noqa: E402
 
+# Only the annotations are needed — this is geometry, no frames are read. But
+# prepare_gsr builds detection.json from the expanded archive, so the download is
+# still the cost.
 prepare_gsr.SPLITS = ["valid"]
 t0 = time.time()
 root = prepare_gsr.fetch()
@@ -43,20 +35,10 @@ if not (prepare_gsr.OUT / "valid" / "detection.json").exists():
     prepare_gsr.prepare(root / "valid", "valid")
 print(f"data ready in {time.time() - t0:.0f}s", flush=True)
 
-hits = sorted(Path("/kaggle/input").rglob("cap_w32/best.pt"))
-if not hits:
-    raise SystemExit("checkpoint not mounted")
-print(f"checkpoint: {hits[0]}", flush=True)
-
 subprocess.run([
-    sys.executable, str(scripts_dir / "eval_temporal.py"),
-    "--ckpt", str(hits[0]),
-    "--gsr", str(OUT / "gsr"), "--frames", str(SCRATCH / "gsr"), "--split", "valid",
-    "--sequences", "4", "--windows", "3,5,9,15",
-    "--out", str(OUT / "temporal.json"),
+    sys.executable, str(scripts_dir / "measure_landmark_ceiling.py"),
+    "--gsr", str(OUT / "gsr"), "--split", "valid",
+    "--stride", "29", "--limit", "1500",
+    "--out", str(OUT / "landmark_ceiling.json"),
 ], check=False)
-
-if (OUT / "temporal.json").exists():
-    print(json.dumps(json.loads((OUT / "temporal.json").read_text()), indent=2)[:2500],
-          flush=True)
 print("\ndone", flush=True)

@@ -1249,6 +1249,45 @@ None of these is more training.
 
 ---
 
+## 9.12 Threshold sweep: half the failures removed without training
+
+Inference-only tuning of the landmark decode threshold and the RANSAC tolerance,
+scored in metres. Artifact: `output/snet_metres/threshold_sweep.json`.
+
+| threshold | RANSAC | landmarks | no homography | p90 | >5 m | **unusable** |
+|---|---|---|---|---|---|---|
+| **0.15** | **4.0 m** | **9** | **4.0%** | **4.09 m** | **8.0%** | **11.7%** |
+| 0.25 | 4.0 m | 8 | 4.6% | 3.95 m | 8.4% | 12.6% |
+| 0.08 | 4.0 m | 11 | 1.0% | 5.94 m | 11.9% | 12.8% |
+| 0.35 | 4.0 m | 8 | 6.4% | 4.79 m | 9.7% | 15.5% |
+| 0.50 (previous default) | 2.0 m | 7 | 11.4% | 8.11 m | 13.0% | 22.9% |
+
+**Unusable players halved, 22.9% → 11.7%, with no training.** p90 went 8.11 → 4.09 m
+and frames producing no homography went 11.4% → 4.0%.
+
+**The optimum is genuine, not a monotone trend.** Going to 0.08 recovers more
+landmarks (11 against 9) and nearly eliminates frames with no homography (1.0%),
+and still ends up worse (12.8%): below about 0.15 the extra detections are noisy
+enough to damage the fit despite RANSAC. A looser RANSAC (4 m) wins at every
+threshold, which is what admitting weaker detections should require — sweeping the
+decode threshold alone would have missed that interaction.
+
+**Prediction check, including where it was wrong.** The mechanism was predicted
+exactly: lowering the threshold recovers about two landmarks, taking the median
+from 7 to 9 and crossing §6.6's k=8 floor. Measured: 9. But the impact was called
+"relevant and limited", and halving the failure rate is more than that. The reason
+is that the estimate reasoned about the *median* frame while all the error lived in
+the tail — the 11.4% of frames with fewer than four landmarks were total failures,
+and those are what the change repaired.
+
+Caveat: both parameters were tuned on the same valid split used to report the
+result. Ten configurations around a clear optimum makes overfitting unlikely, but
+the clean number would come from the test split.
+
+Defaults updated in `core/pitch_eval.py`.
+
+---
+
 ## 10. What is left
 
 1. **Step 3, the control**: this detection head against RF-DETR on the same split

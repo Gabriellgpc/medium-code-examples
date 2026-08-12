@@ -51,6 +51,10 @@ def main() -> None:
     ap.add_argument("--split", default="valid")
     ap.add_argument("--val-stride", type=int, default=87)
     ap.add_argument("--val-limit", type=int, default=500)
+    ap.add_argument("--kp-threshold", type=float, default=0.15,
+                    help="decode threshold for the landmark heatmaps")
+    ap.add_argument("--ransac-m", type=float, default=4.0,
+                    help="RANSAC inlier threshold, in METRES (destination space)")
     ap.add_argument("--out", default="/kaggle/working/metres.json")
     args = ap.parse_args()
 
@@ -99,10 +103,11 @@ def main() -> None:
         out = model(torch.from_numpy(sample["image"])[None].to(device))
 
         kp_pts, kp_ok = decode_landmarks(
-            torch.sigmoid(out["pitch"])[0].cpu().numpy(), kp_stride, scale_x, scale_y
+            torch.sigmoid(out["pitch"])[0].cpu().numpy(), kp_stride, scale_x, scale_y,
+            threshold=args.kp_threshold,
         )
         kp_found.append(int(kp_ok.sum()))
-        h_pred = homography_from_landmarks(kp_pts, kp_ok)
+        h_pred = homography_from_landmarks(kp_pts, kp_ok, ransac_m=args.ransac_m)
         if h_pred is None:
             n_no_pred_h += 1
 
@@ -142,6 +147,8 @@ def main() -> None:
         "checkpoint": args.ckpt,
         "frames": len(ds),
         "kp_stride": kp_stride,
+        "kp_threshold": args.kp_threshold,
+        "ransac_m": args.ransac_m,
         "landmarks_found_median": float(np.median(kp_found)) if kp_found else 0,
         "frames_without_predicted_homography": n_no_pred_h,
         "frames_without_gt_homography": n_no_gt_h,

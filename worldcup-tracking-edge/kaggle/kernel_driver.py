@@ -1,13 +1,25 @@
-"""Metres on the pitch, for the two checkpoints that differ in output stride.
+"""Sweep the landmark decode threshold, scored in metres.
 
-No training. This answers the question none of the per-head metrics answer — how
-far off, in metres, is a player this pipeline places on the minimap — and it
-answers it as a decomposition, so the number comes with a diagnosis.
+The metres decomposition put the whole end-to-end error in the pitch head's tail,
+and located the cause in landmark *count* rather than per-landmark precision: the
+median frame yields 7 landmarks against the 8 that section 6.6 identified as the
+safe floor, and 11.4% of frames yield fewer than four and produce no homography at
+all.
 
-Both checkpoints come from the same concurrent kernel at the same budget, so the
-comparison also converts the kp_stride change from pixels into the unit that
-matters: stride 2 improved landmark error from 8.78 to 7.09 px, and whether that
-is worth its 29% loss of landmark detection can only be judged in metres.
+The decode threshold is the cheapest lever on that. A landmark recovered at low
+confidence still constrains the fit; a missing one does not, and RANSAC is already
+there to reject the ones that come back wrong. This is inference-only — no
+training — so it costs minutes.
+
+The known ceiling, stated up front so the result is read correctly: section 6.6
+measured a median of 9 landmarks actually *visible* per frame out of 33, and the
+head already finds 7 of them. Lowering the threshold can recover about two. That
+crosses the k=8 floor and does not move the frame far from it. The substantive fix
+is a larger landmark set, and this sweep is meant to size that decision, not to
+replace it.
+
+RANSAC threshold is swept alongside, because admitting weaker detections changes
+how tolerant the fit should be.
 """
 
 import json
@@ -18,6 +30,8 @@ from pathlib import Path
 
 SCRATCH = Path("/kaggle/tmp")
 OUT = Path("/kaggle/working")
+THRESHOLDS = [0.5, 0.35, 0.25, 0.15, 0.08]
+RANSAC_M = [2.0, 4.0]
 
 
 def sh(*cmd, check=True):
@@ -29,7 +43,6 @@ def sh(*cmd, check=True):
 
 
 SCRATCH.mkdir(parents=True, exist_ok=True)
-sh("nvidia-smi", "--query-gpu=name", "--format=csv,noheader", check=False)
 sh(sys.executable, "-m", "pip", "install", "-q", "loguru", "albumentations")
 
 
@@ -54,31 +67,60 @@ if not (prepare_gsr.OUT / "valid" / "detection.json").exists():
     prepare_gsr.prepare(root / "valid", "valid")
 print(f"data ready in {time.time() - t0:.0f}s", flush=True)
 
-report = {}
-for tag in ("cap_w32", "pitch_s2"):
-    hits = sorted(Path("/kaggle/input").rglob(f"{tag}/best.pt"))
-    if not hits:
-        print(f"  {tag}: no checkpoint mounted", flush=True)
-        continue
-    print(f"\n{'=' * 60}\n=== {tag}  ({hits[0]})\n{'=' * 60}", flush=True)
-    out = OUT / f"metres_{tag}.json"
-    subprocess.run([
-        sys.executable, str(scripts_dir / "eval_metres.py"),
-        "--ckpt", str(hits[0]),
-        "--gsr", str(OUT / "gsr"), "--frames", str(SCRATCH / "gsr"), "--split", "valid",
-        "--val-stride", "87", "--val-limit", "500", "--out", str(out),
-    ], check=False)
-    if out.exists():
-        report[tag] = json.loads(out.read_text())
+# The stride-4 checkpoint: stride 2 was already measured worse in metres.
+hits = sorted(Path("/kaggle/input").rglob("cap_w32/best.pt"))
+if not hits:
+    raise SystemExit("cap_w32 checkpoint not mounted")
+ckpt = hits[0]
+print(f"checkpoint: {ckpt}", flush=True)
 
-(OUT / "metres_summary.json").write_text(json.dumps(report, indent=2))
-print("\n=== summary", flush=True)
-for tag, r in report.items():
-    print(f"\n{tag}: kp_stride={r['kp_stride']}, "
-          f"landmarks/frame median {r['landmarks_found_median']}, "
-          f"no-homography frames {r['frames_without_predicted_homography']}")
-    for k, v in r["results"].items():
-        if v.get("n"):
-            print(f"   {k:<20} median {v['median_m']:>6.2f} m  p90 {v['p90_m']:>6.2f}  "
-                  f">5m {v['pct_over_5m']:>5.1f}%  <1m {v['pct_under_1m']:>5.1f}%")
+rows = []
+for thr in THRESHOLDS:
+    for rm in RANSAC_M:
+        out = OUT / f"metres_t{thr}_r{rm}.json"
+        subprocess.run([
+            sys.executable, str(scripts_dir / "eval_metres.py"),
+            "--ckpt", str(ckpt),
+            "--gsr", str(OUT / "gsr"), "--frames", str(SCRATCH / "gsr"),
+            "--split", "valid", "--val-stride", "87", "--val-limit", "500",
+            "--kp-threshold", str(thr), "--ransac-m", str(rm), "--out", str(out),
+        ], check=False)
+        if not out.exists():
+            continue
+        r = json.loads(out.read_text())
+        full = r["results"].get("pred_boxes_pred_H", {})
+        pitch_only = r["results"].get("gt_boxes_pred_H", {})
+        no_h = r["frames_without_predicted_homography"]
+        frames = r["frames"]
+        # Frames with no homography are excluded from the error statistics, so the
+        # honest headline combines both failure modes.
+        unusable = 1 - (1 - no_h / frames) * (1 - full.get("pct_over_5m", 0) / 100)
+        rows.append({
+            "threshold": thr, "ransac_m": rm,
+            "landmarks_median": r["landmarks_found_median"],
+            "no_homography_pct": round(100 * no_h / frames, 1),
+            "pitch_median_m": pitch_only.get("median_m"),
+            "pitch_p90_m": pitch_only.get("p90_m"),
+            "full_median_m": full.get("median_m"),
+            "full_p90_m": full.get("p90_m"),
+            "full_over5_pct": full.get("pct_over_5m"),
+            "unusable_pct": round(100 * unusable, 1),
+        })
+        print(f"  thr={thr} ransac={rm}m -> landmarks {rows[-1]['landmarks_median']}, "
+              f"no-H {rows[-1]['no_homography_pct']}%, p90 {rows[-1]['full_p90_m']}m, "
+              f"unusable {rows[-1]['unusable_pct']}%", flush=True)
+
+(OUT / "threshold_sweep.json").write_text(json.dumps({
+    "checkpoint": str(ckpt),
+    "baseline": {"threshold": 0.5, "ransac_m": 2.0, "unusable_pct": 22.9},
+    "rows": rows,
+}, indent=2))
+
+print("\n=== sweep (lower unusable% is better)", flush=True)
+hdr = f"{'thr':>5} {'ransac':>7} {'landmarks':>10} {'no-H%':>7} {'p90 m':>8} {'>5m%':>7} {'unusable%':>10}"
+print(hdr); print("-" * len(hdr))
+for r in sorted(rows, key=lambda x: x["unusable_pct"]):
+    print(f"{r['threshold']:>5} {r['ransac_m']:>7} {r['landmarks_median']:>10} "
+          f"{r['no_homography_pct']:>7} {r['full_p90_m']:>8} {r['full_over5_pct']:>7} "
+          f"{r['unusable_pct']:>10}")
 print("\ndone", flush=True)

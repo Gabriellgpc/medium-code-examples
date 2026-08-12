@@ -36,12 +36,22 @@ from soccernet_tracking_edge.core.targets import soft_argmax
 
 GS_HOTA_TOLERANCE_M = 5.0
 MIN_KEYPOINTS = 4
+
+# Tuned by sweeping both against metres on the valid split, not chosen by taste.
+# At 0.5/2.0 the pipeline left 22.9% of players unusable; at 0.15/4.0 it leaves
+# 11.7%. The optimum is real rather than monotone: dropping to 0.08 recovers more
+# landmarks (11 vs 9) and nearly eliminates frames with no homography (1.0% vs
+# 4.0%), but the extra detections are noisy enough to worsen the fit anyway
+# (12.8% unusable). A looser RANSAC wins at every threshold, which is what
+# admitting weaker detections should require.
+DEFAULT_KP_THRESHOLD = 0.15
+DEFAULT_RANSAC_M = 4.0
 LANDMARK_PITCH = np.array(list(LANDMARKS.values()), dtype=np.float64)
 
 
 def decode_landmarks(
     heat: np.ndarray, kp_stride: int, scale_x: float, scale_y: float,
-    threshold: float = 0.5,
+    threshold: float = DEFAULT_KP_THRESHOLD,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Per-channel soft-argmax into native image pixels.
 
@@ -62,7 +72,7 @@ def decode_landmarks(
 
 
 def homography_from_landmarks(
-    points: np.ndarray, found: np.ndarray, ransac_m: float = 2.0
+    points: np.ndarray, found: np.ndarray, ransac_m: float = DEFAULT_RANSAC_M
 ) -> np.ndarray | None:
     """Image -> pitch from whichever landmarks the head emitted.
 

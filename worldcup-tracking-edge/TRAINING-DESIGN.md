@@ -1288,6 +1288,53 @@ Defaults updated in `core/pitch_eval.py`.
 
 ---
 
+## 9.13 Temporal smoothing works, for the opposite reason to the one predicted
+
+Four whole sequences, 3,000 contiguous frames. Artifact: `output/snet_temporal/`.
+
+| setting | median | p90 | >5 m | no homography | **unusable** |
+|---|---|---|---|---|---|
+| raw, per frame | 0.965 m | 4.359 | 8.4% | 13.5% | **20.7%** |
+| median filter w=3 | 0.965 m | 4.310 | 8.3% | **0.0%** | **8.3%** |
+| median filter w=5 | 0.970 m | 4.264 | 8.2% | 0.0% | 8.2% |
+| w=9 | 0.965 m | 4.187 | 8.0% | 0.0% | 8.0% |
+| w=15 | 0.981 m | 4.111 | 7.8% | 0.0% | 7.8% |
+
+**Unusable players fell from 20.7% to 8.3%**, a 60% reduction, and again with no
+training.
+
+### The predicted mechanism was wrong
+
+The stated reasoning was that the error is "good almost always, occasionally
+catastrophic", and that a median filter would *repair the catastrophic frames*.
+It does not. **The >5 m rate barely moves** — 8.4% raw against 7.8% at a window of
+15, which is nearly window-independent. The entire gain comes from **filling frames
+that produced no homography at all**: 13.5% → 0.0%.
+
+So the tail is not temporal noise. If it were, a median over neighbours would
+replace a bad frame with good ones and the >5 m rate would collapse. It does not
+move, which means the frames beyond tolerance sit in **systematically hard
+stretches** — camera positions where too few landmarks are visible or correct, and
+where the neighbours are no better. Smoothing fixes *no output*; it does not fix
+*wrong output*.
+
+The lag cost I worried about did not materialise either: the median moves 0.965 →
+0.981 m across windows from 3 to 15. So **use a small window** — w=3 already
+captures almost all of the gain, at the least lag and the least compute.
+
+### Where this leaves the remaining error
+
+The residual 8% is systematic difficulty, not jitter, which points squarely back at
+§8.1's recommendation: **expand the landmark set**. A frame with too few visible
+landmarks cannot be repaired from its neighbours if they are the same shot. More
+landmarks defined means more visible in exactly those hard camera positions.
+
+Note the raw baseline here (13.5% no homography) is worse than §9.12's tuned 4.0%,
+because these are four contiguous sequences rather than 500 frames strided across
+58. The two are compared only within their own runs.
+
+---
+
 ## 10. What is left
 
 1. **Step 3, the control**: this detection head against RF-DETR on the same split

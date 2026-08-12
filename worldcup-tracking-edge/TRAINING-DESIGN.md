@@ -1392,6 +1392,64 @@ The prediction above is what the next run gets checked against.
 
 ---
 
+## 9.15 Expanded landmarks: geometry delivered, the head did not, and the run cannot finish
+
+Two attempts, both SIGKILLed by the RAM OOM killer partway through epoch 3.
+Artifacts: `output/snet_expanded/`. Weekly Kaggle GPU quota is now exhausted, so
+this is where it stands rather than where it ends.
+
+### What the two partial runs (2 of 5–6 epochs) show
+
+| | 33 landmarks (4 ep) | 47 landmarks (2 ep) |
+|---|---|---|
+| landmarks found per frame | 7 | **16** |
+| frames with no homography | 4.0% | **0.0%** |
+| landmark error (px) | 8.61 | 10.59 |
+| landmark detection rate | 0.83 | 0.62 |
+| players > 5 m | 8.0% | 10.4% |
+| median position error | 0.91 m | 1.08 m |
+
+**The geometry delivered exactly what was measured.** Frames producing no
+homography went to **zero** — the degeneracy floor §9.14 measured at 3.1% with
+perfect keypoints is gone, and landmarks per frame more than doubled.
+
+**The head did not.** Per-landmark quality is worse on both axes: 10.59 px against
+8.61, and 62% detection against 83%. That is precisely the risk named before the
+run — corners and line intersections are crisp, while a sample point at 30° on a
+circle has no local feature marking it and must be inferred from the arc's shape.
+
+Net, the metres are slightly worse, and the prediction of 1.5–2% beyond tolerance
+was not met (10.4%). **But both runs stopped at 2 epochs against the 4–6 of every
+comparison**, and at its own 2-epoch mark the 33-point model showed 0.61 detection
+and 9.63 px — so the expanded set is behind at the same point, not collapsed. The
+question is genuinely unresolved.
+
+### The OOM, and four hypotheses measurement has killed
+
+Per-epoch RSS logging, added after the first failure, gives the shape: **13.38 GB
+after epoch 0, 22.11 GB after epoch 1**, against a limit near 30 GB. The +8.7 GB
+lands in the epoch that runs the evaluations.
+
+Refuted since:
+
+1. **Worker copy-on-write on the dataset's Python dicts** — dropping four workers
+   to two changed nothing, and the growth is in the *main* process.
+2. **A leak in the training step** — reproduced locally over 240 steps: RSS flat at
+   2.11 GB from step 40 onward.
+3. **A leak in the evaluation functions** — three repeated full passes locally add
+   0.00 GB after the first.
+4. **The dataset objects being the bulk** — measured at roughly 1,200 B per
+   annotation, so train and valid together are about 1.9 GB, not 13.
+
+**The cause is not identified.** Staged for the next run: RSS printed at every
+logging step (localising growth to a phase rather than an epoch), `gc.collect()`
+and `empty_cache()` between epochs, and `pin_memory=False`, since page-locked host
+buffers live in exactly the process that grows. Remaining suspect, untested:
+shared-memory tensors from dataloader workers are mapped into the parent and do
+count toward its RSS.
+
+---
+
 ## 10. What is left
 
 1. **Step 3, the control**: this detection head against RF-DETR on the same split

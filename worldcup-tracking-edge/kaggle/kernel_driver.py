@@ -1,4 +1,20 @@
-"""Retrain with the expanded landmark set, then score it in metres.
+"""Retrain with the expanded landmark set, then score it in metres. (Attempt 3.)
+
+Two attempts have been SIGKILLed by the RAM OOM killer at the same point, epoch 3,
+with VRAM at only 1.6 GB — a failure no GPU metric shows. The per-epoch RSS logging
+added after attempt 1 says what is happening: **13.38 GB after epoch 0, 22.11 GB
+after epoch 1**, roughly 8.7 GB per epoch, against a limit near 30 GB.
+
+It also killed the first hypothesis. The growth is in the **main process**, not in
+forked dataloader workers, so copy-on-write on the dataset's Python dicts is not
+the cause — and dropping from four workers to two changed nothing, as that reading
+predicts.
+
+The cause is still unidentified, so this attempt is containment plus measurement
+rather than a fix: RSS is now printed at every logging step (localising growth to a
+phase instead of an epoch), `gc.collect()` and `empty_cache()` run between epochs,
+and `pin_memory` is off, since page-locked host buffers live in exactly the process
+that is growing.
 
 The ceiling measurement said this is the change worth paying for: 41% of frames
 sat below §6.6's eight-correspondence safety floor with 33 landmarks and 6% do with
@@ -31,7 +47,7 @@ from pathlib import Path
 
 SCRATCH = Path("/kaggle/tmp")
 OUT = Path("/kaggle/working")
-EPOCHS = 6
+EPOCHS = 5
 
 
 def sh(*cmd, check=True):
@@ -78,7 +94,7 @@ try:
         "--heads", "ball,detection,pitch", "--landmark-set", "expanded",
         "--trunk-width", "32", "--epochs", str(EPOCHS), "--batch", "8", "--lr", "1e-3",
         "--val-stride", "29", "--val-limit", "1500",
-        "--workers", "4", "--eval-every", "2", "--tag", TAG,
+        "--workers", "2", "--eval-every", "2", "--tag", TAG,
     ], check=True)
 except subprocess.CalledProcessError:
     traceback.print_exc()

@@ -21,6 +21,7 @@ Checkpoints and metrics go to /kaggle/working (persisted); frames stay in scratc
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import sys
 import time
@@ -56,6 +57,23 @@ from soccernet_tracking_edge.core.snet_loss import (  # noqa: E402
 )
 from soccernet_tracking_edge.core.snet_model import SNetConfig, SNetModel  # noqa: E402
 from soccernet_tracking_edge.core.targets import soft_argmax  # noqa: E402
+
+
+def _rss_gb() -> float:
+    """Resident memory of this process, in GB.
+
+    A 47-channel pitch target pushed a run into the RAM OOM killer at epoch 3
+    (SIGKILL, with VRAM at only 1.6 GB), which is invisible in any GPU metric.
+    Recording it per epoch turns the next occurrence into a diagnosis.
+    """
+    try:
+        with open("/proc/self/status") as fh:
+            for line in fh:
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) / 1e6
+    except OSError:
+        pass
+    return 0.0
 
 
 def check_device() -> str:
@@ -102,7 +120,7 @@ def build_loaders(args, heads):
     ) if val_det.exists() else None
     return (
         DataLoader(train, batch_size=args.batch, shuffle=True,
-                   num_workers=args.workers, pin_memory=True, drop_last=True),
+                   num_workers=args.workers, pin_memory=False, drop_last=True),
         DataLoader(val, batch_size=args.batch, shuffle=False,
                    num_workers=args.workers) if val else None,
     )
@@ -219,6 +237,10 @@ def main() -> None:
     ap.add_argument("--landmark-set", default="expanded",
                     choices=["base", "expanded"])
     ap.add_argument("--trunk-width", type=int, default=18)
+    # Kept low deliberately: the dataset holds well over a million small Python
+    # dicts, and each forked worker gradually materialises them through
+    # copy-on-write refcount touches. Four workers with the 47-channel target
+    # reached the RAM OOM killer partway through epoch 3.
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--limit", type=int, default=None, help="cap training samples")
     ap.add_argument("--val-limit", type=int, default=1500)
@@ -306,7 +328,7 @@ def main() -> None:
             if step % 50 == 0:
                 parts = " ".join(f"{k}={float(v):.4f}" for k, v in losses.items())
                 print(f"  e{epoch} s{step}/{len(train_loader)} total={float(total):.4f} "
-                      f"{parts}", flush=True)
+                      f"{parts} rss={_rss_gb():.1f}G", flush=True)
 
         entry = {
             "epoch": epoch,
@@ -314,6 +336,7 @@ def main() -> None:
             # Measured rather than extrapolated: batch size has been held at 8 for
             # comparability since Step 1, not because of a memory limit, and the
             # headroom was only ever estimated from a 6 GB laptop GPU.
+            "rss_gb": round(_rss_gb(), 2),
             "peak_vram_gb": round(
                 max(torch.cuda.max_memory_allocated(d) for d in range(n_gpu)) / 1e9, 2
             ) if n_gpu else None,
@@ -358,6 +381,9 @@ def main() -> None:
                     best_loss[head] = value
                     save(run_dir / f"best_{head}.pt")
 
+        gc.collect()
+        if device == "cuda":
+            torch.cuda.empty_cache()
         history.append(entry)
         (run_dir / "history.json").write_text(json.dumps(
             {"args": vars(args), "params_m": round(model.n_params / 1e6, 3),

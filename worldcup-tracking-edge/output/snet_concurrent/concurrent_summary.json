@@ -1,0 +1,160 @@
+{
+  "cap_w32": {
+    "params_m": 6.324,
+    "epoch_seconds": [
+      3287.7,
+      3192.0,
+      3155.2,
+      3163.1,
+      2462.0,
+      2062.3
+    ],
+    "samples_per_s": [
+      13.0,
+      13.4,
+      13.5,
+      13.5,
+      17.4,
+      20.7
+    ],
+    "peak_vram_gb": [
+      2.66,
+      2.66,
+      2.66,
+      2.66,
+      2.66,
+      2.66
+    ],
+    "ball_f1": [
+      0.4167,
+      0.5048,
+      0.5024
+    ],
+    "pitch": [
+      {
+        "median_px": 9.631,
+        "p90_px": 26.536,
+        "pct_under_budget": 9.14,
+        "detected_fraction": 0.609
+      },
+      {
+        "median_px": 8.898,
+        "p90_px": 25.289,
+        "pct_under_budget": 11.39,
+        "detected_fraction": 0.8306
+      },
+      {
+        "median_px": 8.61,
+        "p90_px": 24.919,
+        "pct_under_budget": 12.31,
+        "detected_fraction": 0.8289
+      }
+    ],
+    "kendall": [
+      {
+        "ball": 3.2723,
+        "detection": 1.1471,
+        "pitch": 195.0181
+      }
+    ],
+    "map": {
+      "mAP": 0.265,
+      "mAP_50": 0.5813,
+      "mAP_75": 0.1938,
+      "mAP_small": 0.1744,
+      "mAP_medium": 0.2621,
+      "mAP_large": 0.3755,
+      "AR_1": 0.2134,
+      "AR_10": 0.3619,
+      "AR_100": 0.4156,
+      "AR_small": 0.2042,
+      "AR_medium": 0.4152,
+      "AR_large": 0.5241,
+      "n_detections": 49498,
+      "per_class_AP": {
+        "player": 0.3514,
+        "referee": 0.15,
+        "goalkeeper": 0.2936
+      }
+    }
+  },
+  "pitch_s2": {
+    "params_m": 2.275,
+    "epoch_seconds": [
+      3599.1,
+      3519.5,
+      3498.1,
+      3451.9
+    ],
+    "samples_per_s": [
+      11.9,
+      12.1,
+      12.2,
+      12.4
+    ],
+    "peak_vram_gb": [
+      2.7,
+      2.7,
+      2.7,
+      2.7
+    ],
+    "ball_f1": [
+      0.4385,
+      0.5027
+    ],
+    "pitch": [
+      {
+        "median_px": 8.257,
+        "p90_px": 23.04,
+        "pct_under_budget": 11.76,
+        "detected_fraction": 0.2202
+      },
+      {
+        "median_px": 7.092,
+        "p90_px": 20.693,
+        "pct_under_budget": 16.01,
+        "detected_fraction": 0.5756
+      }
+    ],
+    "kendall": [
+      {
+        "ball": 2.5583,
+        "detection": 1.0362,
+        "pitch": 50.1048
+      }
+    ],
+    "map": {
+      "mAP": 0.2739,
+      "mAP_50": 0.5998,
+      "mAP_75": 0.2041,
+      "mAP_small": 0.1506,
+      "mAP_medium": 0.274,
+      "mAP_large": 0.3679,
+      "AR_1": 0.2137,
+      "AR_10": 0.3633,
+      "AR_100": 0.4163,
+      "AR_small": 0.197,
+      "AR_medium": 0.4159,
+      "AR_large": 0.5374,
+      "n_detections": 49812,
+      "per_class_AP": {
+        "player": 0.3588,
+        "referee": 0.1527,
+        "goalkeeper": 0.3102
+      }
+    }
+  },
+  "_reference_w18_4ep_b8": {
+    "mAP": 0.274,
+    "ball_f1": 0.4913,
+    "pitch": {
+      "median_px": 8.781,
+      "detected_fraction": 0.8107,
+      "pct_under_budget": 11.48
+    }
+  },
+  "_reference_w32_4ep_b8": {
+    "mAP": 0.2865,
+    "ball_f1": 0.5104
+  }
+}

@@ -211,6 +211,10 @@ def main() -> None:
     ap.add_argument("--stem-stride", type=int, default=4)
     ap.add_argument("--head-upsample", type=int, default=4)
     ap.add_argument("--kp-stride", type=int, default=4)
+    # Must satisfy kp_stride == stem_stride / pitch_upsample, or the target and
+    # the head land on different grids and the loss silently compares
+    # mismatched resolutions.
+    ap.add_argument("--pitch-upsample", type=int, default=1)
     ap.add_argument("--trunk-width", type=int, default=18)
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--limit", type=int, default=None, help="cap training samples")
@@ -228,9 +232,17 @@ def main() -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
 
     device = check_device()
+    expected = args.stem_stride // args.pitch_upsample
+    if args.kp_stride != expected:
+        raise SystemExit(
+            f"--kp-stride {args.kp_stride} does not match stem_stride "
+            f"{args.stem_stride} / pitch_upsample {args.pitch_upsample} = {expected}; "
+            "the target and the head would be on different grids"
+        )
     cfg = SNetConfig(
         width=args.trunk_width, stem_stride=args.stem_stride,
-        head_upsample=args.head_upsample, heads=heads,
+        head_upsample=args.head_upsample, pitch_upsample=args.pitch_upsample,
+        heads=heads,
     )
     model = SNetModel(cfg).to(device)
 

@@ -1103,6 +1103,81 @@ sequence.
 
 ---
 
+## 9.10 Two concurrent arms: one methodology bug, one partial win, one reframing
+
+Artifact: `output/snet_concurrent/`.
+
+### The w32 6-epoch arm is invalid, and the cause is my checkpoint selection
+
+w32 at 6 epochs scored **mAP 0.2650** against **0.2865** for w32 at 4 epochs —
+worse on every axis. That is not a training result. `best.pt` is selected by **ball
+F1**, and detection mAP is then evaluated from that same file. In the 4-epoch run
+the best ball F1 landed at the final evaluation, when OneCycle had annealed; in the
+6-epoch run it landed at **epoch 3 of 6**, mid-schedule with the learning rate still
+high. The two numbers come from checkpoints at different points of their own
+schedule and cannot be compared.
+
+**Fix before any further budget comparison:** evaluate detection from `last.pt`
+(fully annealed) or keep a per-head best. Selecting on one head and reporting
+another is the defect.
+
+This also means the §9.7 conclusion needs re-checking on the same footing, though
+there the 3- and 12-epoch runs each had their best ball F1 at the last evaluation,
+so both were annealed and the comparison stands.
+
+### kp_stride = 2 does what it was predicted to, and costs something else
+
+Against the w18 4-epoch reference at stride 4, same width, same budget:
+
+| | stride 4 | stride 2 | |
+|---|---|---|---|
+| landmark median error | 8.78 px | **7.09 px** | −19% |
+| p90 | 24.49 px | **20.69 px** | −16% |
+| inside the 2–3 px budget | 11.48% | **16.01%** | +39% rel. |
+| landmarks detected | **81.1%** | 57.6% | −29% |
+
+Localisation improved as the hypothesis said it would, and detection got worse. The
+second effect has a plausible mechanism: the Gaussian is σ=2 *output* pixels either
+way, so at stride 2 it covers half the native area — a physically smaller target —
+while the negative pixel count quadruples. The `pos_floor=200` was tuned at stride
+4 and no longer matches.
+
+Detection was also still climbing steeply (0.220 → 0.576 across two evaluations,
+against 0.665 → 0.811 at stride 4), so this arm is undertrained rather than
+converged. The honest read: **finer stride helps placement, and the loss balance
+needs retuning for it.** Not a rejection of the hypothesis, not yet a confirmation
+of the whole change.
+
+### The reframing: we are dataloader-bound, not GPU-bound
+
+Two concurrent trainings returned **1.09x** total throughput, not 2x:
+
+| | samples/s |
+|---|---|
+| cap_w32 while sharing | 13.0–13.5 |
+| pitch_s2 while sharing | 11.9–12.4 |
+| combined | 24.9 |
+| a single run alone | 22.8 |
+
+And the direct evidence: **the moment the shorter arm finished, the other sped up
+1.53x** (13.5 → 20.7 samples/s) with no change to its own configuration.
+
+Four vCPUs are decoding three 1920×1080 JPEGs per sample, resizing them, and
+running augmentation. That is the bottleneck, and it explains the two previous
+negative results as one cause:
+
+- **DataParallel gave 0.81x** — adding a second GPU cannot help a pipeline waiting
+  on the CPU, and it added transfer on top.
+- **Concurrency gave 1.09x** — two trainings competing for the same four cores.
+
+**So the next throughput lever is not a GPU at all.** Pre-resize the frames to the
+network's input size once and cache them: the per-sample cost is three full-HD JPEG
+decodes, and decoding 384×640 instead would cut it by roughly an order of
+magnitude. That is a one-time preparation pass, and it makes every later experiment
+cheaper.
+
+---
+
 ## 10. What is left
 
 1. **Step 3, the control**: this detection head against RF-DETR on the same split

@@ -29,7 +29,7 @@ import cv2
 import numpy as np
 from torch.utils.data import Dataset
 
-from soccernet_tracking_edge.core.pitch import LANDMARKS, fit_homography, project
+from soccernet_tracking_edge.core.pitch import fit_homography, get_landmarks, project
 from soccernet_tracking_edge.core.targets import (
     ball_gaussian,
     detection_targets,
@@ -44,7 +44,7 @@ N_DET_CLASSES = 3
 MIN_ATHLETES_FOR_HOMOGRAPHY = 8
 
 
-def flip_permutation() -> np.ndarray:
+def flip_permutation(landmark_set: str = "expanded") -> np.ndarray:
     """Index map for a horizontal flip of the landmark set.
 
     A flipped frame turns the left goal into the right goal. Feeding it with
@@ -55,8 +55,9 @@ def flip_permutation() -> np.ndarray:
     Built by mirroring each landmark's pitch coordinate (x -> -x) and finding the
     landmark that actually sits there, so it stays correct if LANDMARKS changes.
     """
-    names = list(LANDMARKS)
-    coords = {name: (round(x, 3), round(y, 3)) for name, (x, y) in LANDMARKS.items()}
+    landmarks = get_landmarks(landmark_set)
+    names = list(landmarks)
+    coords = {name: (round(x, 3), round(y, 3)) for name, (x, y) in landmarks.items()}
     lookup = {v: k for k, v in coords.items()}
     perm = []
     for name in names:
@@ -85,6 +86,7 @@ class SNetDataset(Dataset):
         augment: bool = False,
         limit: int | None = None,
         stride: int | None = None,
+        landmark_set: str = "expanded",
     ):
         self.root = Path(root)
         self.size = size
@@ -94,7 +96,8 @@ class SNetDataset(Dataset):
         self.kp_stride = kp_stride
         self.heads = heads
         self.augment = augment
-        self.flip_perm = flip_permutation()
+        self.landmarks = get_landmarks(landmark_set)
+        self.flip_perm = flip_permutation(landmark_set)
         self.augmenter = self._build_augmenter() if augment else None
 
         data = json.loads(Path(det_json).read_text())
@@ -130,7 +133,7 @@ class SNetDataset(Dataset):
         if limit:
             self.index = self.index[:limit]
 
-        self.landmark_pts = np.array(list(LANDMARKS.values()), dtype=np.float64)
+        self.landmark_pts = np.array(list(self.landmarks.values()), dtype=np.float64)
 
     def _build_augmenter(self):
         """Photometric and mild geometric augmentation, identical across the stack.

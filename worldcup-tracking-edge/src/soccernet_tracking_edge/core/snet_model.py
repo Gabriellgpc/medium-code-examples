@@ -148,7 +148,7 @@ class SNetConfig:
     stage_modules: tuple[int, ...] = (1, 1, 1)  # fusion modules per stage
     head_channels: int = 32
     n_classes: int = 3                 # player, referee, goalkeeper (ball has its own head)
-    n_keypoints: int = 33              # LANDMARKS; see TRAINING-DESIGN section 8.1 on expanding it
+    landmark_set: str = "expanded"     # named in the config so it reaches the checkpoint
     in_frames: int = 3                 # temporal window stacked on channels
     head_upsample: int = 4             # ball head upsample (see Head docstring)
     # Pitch keypoints need no decoder. Measured: soft-argmax on a sigma=2 Gaussian
@@ -157,6 +157,12 @@ class SNetConfig:
     # path buys nothing here, and the target drops from 32.4 MB per sample to 2.0.
     pitch_upsample: int = 1
     heads: tuple[str, ...] = field(default=("ball", "detection", "pitch"))
+
+    @property
+    def n_keypoints(self) -> int:
+        from soccernet_tracking_edge.core.pitch import get_landmarks
+
+        return len(get_landmarks(self.landmark_set))
 
 
 class SNetBackbone(nn.Module):

@@ -197,3 +197,23 @@ def _penalty_arc_points() -> dict[str, tuple[float, float]]:
 EXPANDED_LANDMARKS: dict[str, tuple[float, float]] = {
     **LANDMARKS, **_circle_points(), **_penalty_arc_points(),
 }
+
+
+LANDMARK_SETS: dict[str, dict[str, tuple[float, float]]] = {
+    "base": LANDMARKS,
+    "expanded": EXPANDED_LANDMARKS,
+}
+
+
+def get_landmarks(name: str) -> dict[str, tuple[float, float]]:
+    """Look up a landmark set by name.
+
+    The name travels in the model config and therefore into the checkpoint,
+    because the head has one output channel per landmark and channel *k* means
+    landmark *k*. Loading a 47-channel checkpoint and decoding it against the
+    33-point set would silently map every channel to the wrong pitch coordinate
+    and produce a plausible, wrong homography.
+    """
+    if name not in LANDMARK_SETS:
+        raise ValueError(f"unknown landmark set {name!r}; have {sorted(LANDMARK_SETS)}")
+    return LANDMARK_SETS[name]

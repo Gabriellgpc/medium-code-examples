@@ -74,7 +74,7 @@ def main() -> None:
     ds = SNetDataset(
         Path(args.frames) / args.split, Path(args.gsr) / args.split / "detection.json",
         size=(384, 640), heads=cfg.heads, det_stride=cfg.stem_stride,
-        kp_stride=kp_stride, augment=False,
+        kp_stride=kp_stride, augment=False, landmark_set=cfg.landmark_set,
     )
     scale_x, scale_y = 640 / 1920.0, 384 / 1080.0
     windows = [int(w) for w in args.windows.split(",")]
@@ -116,7 +116,7 @@ def main() -> None:
             pts, ok = decode_landmarks(
                 torch.sigmoid(out["pitch"])[0].cpu().numpy(), kp_stride, scale_x, scale_y
             )
-            homographies.append(homography_from_landmarks(pts, ok))
+            homographies.append(homography_from_landmarks(pts, ok, landmark_set=cfg.landmark_set))
 
             dets = decode_detections(
                 out["detection"].cpu(), out["det_size"].cpu(), out["det_offset"].cpu(),

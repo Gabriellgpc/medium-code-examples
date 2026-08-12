@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from soccernet_tracking_edge.core.pitch import LANDMARKS, fit_homography, project
+from soccernet_tracking_edge.core.pitch import fit_homography, get_landmarks, project
 from soccernet_tracking_edge.core.targets import soft_argmax
 
 GS_HOTA_TOLERANCE_M = 5.0
@@ -46,7 +46,9 @@ MIN_KEYPOINTS = 4
 # admitting weaker detections should require.
 DEFAULT_KP_THRESHOLD = 0.15
 DEFAULT_RANSAC_M = 4.0
-LANDMARK_PITCH = np.array(list(LANDMARKS.values()), dtype=np.float64)
+def landmark_pitch(landmark_set: str = "expanded") -> np.ndarray:
+    """Pitch coordinates for a named set, in channel order."""
+    return np.array(list(get_landmarks(landmark_set).values()), dtype=np.float64)
 
 
 def decode_landmarks(
@@ -72,7 +74,8 @@ def decode_landmarks(
 
 
 def homography_from_landmarks(
-    points: np.ndarray, found: np.ndarray, ransac_m: float = DEFAULT_RANSAC_M
+    points: np.ndarray, found: np.ndarray, ransac_m: float = DEFAULT_RANSAC_M,
+    landmark_set: str = "expanded",
 ) -> np.ndarray | None:
     """Image -> pitch from whichever landmarks the head emitted.
 
@@ -84,7 +87,8 @@ def homography_from_landmarks(
     if found.sum() < MIN_KEYPOINTS:
         return None
     try:
-        h, _ = fit_homography(points[found], LANDMARK_PITCH[found], ransac_m=ransac_m)
+        pitch_pts = landmark_pitch(landmark_set)
+        h, _ = fit_homography(points[found], pitch_pts[found], ransac_m=ransac_m)
     except (ValueError, np.linalg.LinAlgError):
         return None
     return h

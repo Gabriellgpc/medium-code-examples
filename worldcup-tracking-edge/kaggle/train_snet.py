@@ -88,6 +88,7 @@ def build_loaders(args, heads):
     common = dict(
         size=(args.height, args.width), heads=heads,
         ball_stride=1, det_stride=args.stem_stride, kp_stride=args.kp_stride,
+        landmark_set=args.landmark_set,
     )
     train = SNetDataset(
         SCRATCH / "train", GSR / "train" / "detection.json",
@@ -215,6 +216,8 @@ def main() -> None:
     # the head land on different grids and the loss silently compares
     # mismatched resolutions.
     ap.add_argument("--pitch-upsample", type=int, default=1)
+    ap.add_argument("--landmark-set", default="expanded",
+                    choices=["base", "expanded"])
     ap.add_argument("--trunk-width", type=int, default=18)
     ap.add_argument("--workers", type=int, default=2)
     ap.add_argument("--limit", type=int, default=None, help="cap training samples")
@@ -242,7 +245,7 @@ def main() -> None:
     cfg = SNetConfig(
         width=args.trunk_width, stem_stride=args.stem_stride,
         head_upsample=args.head_upsample, pitch_upsample=args.pitch_upsample,
-        heads=heads,
+        landmark_set=args.landmark_set, heads=heads,
     )
     model = SNetModel(cfg).to(device)
 

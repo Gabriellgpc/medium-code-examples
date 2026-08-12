@@ -69,7 +69,7 @@ def main() -> None:
     ds = SNetDataset(
         Path(args.frames) / args.split, Path(args.gsr) / args.split / "detection.json",
         size=(384, 640), heads=cfg.heads, det_stride=cfg.stem_stride,
-        kp_stride=kp_stride, augment=False,
+        kp_stride=kp_stride, augment=False, landmark_set=cfg.landmark_set,
         stride=args.val_stride, limit=args.val_limit,
     )
     scale_x, scale_y = 640 / 1920.0, 384 / 1080.0
@@ -107,7 +107,8 @@ def main() -> None:
             threshold=args.kp_threshold,
         )
         kp_found.append(int(kp_ok.sum()))
-        h_pred = homography_from_landmarks(kp_pts, kp_ok, ransac_m=args.ransac_m)
+        h_pred = homography_from_landmarks(
+            kp_pts, kp_ok, ransac_m=args.ransac_m, landmark_set=cfg.landmark_set)
         if h_pred is None:
             n_no_pred_h += 1
 

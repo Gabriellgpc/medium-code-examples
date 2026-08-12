@@ -278,6 +278,14 @@ def main() -> None:
     scale_x, scale_y = args.width / 1920.0, args.height / 1080.0
     history = []
     best = -1.0
+    best_loss: dict[str, float] = {}
+
+    def save(path: Path) -> None:
+        """Always from the base model — a DataParallel wrapper prefixes every
+        key with "module." and the checkpoint stops loading into a plain
+        SNetModel."""
+        torch.save({"model": model.state_dict(), "cfg": cfg.__dict__}, path)
+
     for epoch in range(args.epochs):
         t0, running = time.time(), {}
         for step, batch in enumerate(train_loader):
@@ -329,25 +337,31 @@ def main() -> None:
                   f"(AP {entry['ball_val']['4']['ap']:.4f})", flush=True)
             if f1 > best:
                 best = f1
-                torch.save({"model": model.state_dict(), "cfg": cfg.__dict__},
-                           run_dir / "best.pt")
-        elif "val_loss" in entry and entry["val_loss"]:
-            # No ball head: keep the checkpoint with the lowest total val loss.
-            score = -sum(entry["val_loss"].values())
-            if score > best:
-                best = score
-                torch.save({"model": model.state_dict(), "cfg": cfg.__dict__},
-                           run_dir / "best.pt")
+                save(run_dir / "best_ball.pt")
+
+        # One checkpoint per head, selected on that head's own signal.
+        #
+        # A single best.pt chosen by ball F1, with detection mAP then read out of
+        # it, produced a comparison that looked like a training result and was not:
+        # a 6-epoch run peaked on ball F1 at epoch 3, mid-OneCycle with the
+        # learning rate still high, and its detection score was measured from that
+        # half-annealed model. `last.pt` is the fully annealed one and is what
+        # cross-run detection comparisons should use.
+        if "val_loss" in entry:
+            for head, value in entry["val_loss"].items():
+                if head == "ball":
+                    continue
+                if value < best_loss.get(head, float("inf")):
+                    best_loss[head] = value
+                    save(run_dir / f"best_{head}.pt")
+
         history.append(entry)
         (run_dir / "history.json").write_text(json.dumps(
             {"args": vars(args), "params_m": round(model.n_params / 1e6, 3),
              "history": history}, indent=2))
         print(f"epoch {epoch} done in {entry['seconds']}s", flush=True)
 
-    # state_dict from the base model, never the DataParallel wrapper: the
-    # wrapper prefixes every key with "module." and the checkpoint stops
-    # loading into a plain SNetModel.
-    torch.save({"model": model.state_dict(), "cfg": cfg.__dict__}, run_dir / "last.pt")
+    save(run_dir / "last.pt")
     print(f"\nbest ball F1@4px: {best:.4f}" if best >= 0 else "\nno ball eval run")
     print(f"artifacts in {run_dir}", flush=True)
 

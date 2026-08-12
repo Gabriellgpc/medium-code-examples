@@ -1,32 +1,16 @@
-"""Two experiments, one per GPU, concurrently.
+"""Metres on the pitch, for the two checkpoints that differ in output stride.
 
-DataParallel measured 0.81x against a single GPU — the model is small and the
-heatmap outputs are large, so gathering them dominates. In a phase that compares
-configurations, two concurrent runs beat one faster run anyway: two answers
-instead of one answer sooner. So each arm gets its own device via
-CUDA_VISIBLE_DEVICES and they run side by side.
+No training. This answers the question none of the per-head metrics answer — how
+far off, in metres, is a player this pipeline places on the minimap — and it
+answers it as a decomposition, so the number comes with a diagnosis.
 
-**Batch 8 and lr 1e-3 in both arms**, identical to every prior run. Batch 16
-measured 16% faster, but adopting it here would change the optimisation regime in
-the same run that changes capacity and output stride, and neither result would be
-attributable. The concurrency buys the wall-clock instead, at no cost to
-comparability.
-
-  GPU 0 — w32, 6 epochs.  Capacity won the last comparison on exactly the axis
-          twelve epochs could not move (AP75 +13.7%, small objects +16.6%) and was
-          free to train. Does it compound with more epochs?
-
-  GPU 1 — w18 with kp_stride 2, 4 epochs, directly comparable to the w18 4-epoch
-          run that produced the current pitch numbers. The pitch head now finds
-          81% of landmarks but places them at a median 8.78 native px against a
-          2-3 px budget, and at stride 4 one output pixel spans 12 native ones.
-          The decoding floor was measured at 0.66 px with a clean Gaussian; a
-          noisy prediction has far fewer pixels to fit. Halving the stride is the
-          cheap test of whether that is the limit.
+Both checkpoints come from the same concurrent kernel at the same budget, so the
+comparison also converts the kp_stride change from pixels into the unit that
+matters: stride 2 improved landmark error from 8.78 to 7.09 px, and whether that
+is worth its 29% loss of landmark detection can only be judged in metres.
 """
 
 import json
-import os
 import subprocess
 import sys
 import time
@@ -45,8 +29,7 @@ def sh(*cmd, check=True):
 
 
 SCRATCH.mkdir(parents=True, exist_ok=True)
-sh("nvidia-smi", "--query-gpu=name,memory.total", "--format=csv", check=False)
-sh("nproc", check=False)
+sh("nvidia-smi", "--query-gpu=name", "--format=csv,noheader", check=False)
 sh(sys.executable, "-m", "pip", "install", "-q", "loguru", "albumentations")
 
 
@@ -58,84 +41,44 @@ def locate(marker: str) -> Path:
 
 
 pkg_dir = locate("soccernet_tracking_edge/__init__.py").parent
-scripts_dir = locate("train_snet.py")
+scripts_dir = locate("eval_metres.py")
 sys.path.insert(0, str(pkg_dir))
 sys.path.insert(0, str(scripts_dir))
 
 import prepare_gsr  # noqa: E402
 
-prepare_gsr.SPLITS = ["train", "valid"]
+prepare_gsr.SPLITS = ["valid"]
 t0 = time.time()
 root = prepare_gsr.fetch()
-for split in prepare_gsr.SPLITS:
-    if not (prepare_gsr.OUT / split / "detection.json").exists():
-        prepare_gsr.prepare(root / split, split)
+if not (prepare_gsr.OUT / "valid" / "detection.json").exists():
+    prepare_gsr.prepare(root / "valid", "valid")
 print(f"data ready in {time.time() - t0:.0f}s", flush=True)
 
-COMMON = [
-    "--heads", "ball,detection,pitch", "--batch", "8", "--lr", "1e-3",
-    "--val-stride", "29", "--val-limit", "1500",
-    # 4 vCPUs shared by two concurrent trainings; 4 workers each would thrash.
-    "--workers", "2", "--eval-every", "2",
-]
-ARMS = [
-    ("cap_w32", "0", ["--trunk-width", "32", "--epochs", "6"]),
-    ("pitch_s2", "1", ["--trunk-width", "18", "--epochs", "4",
-                       "--kp-stride", "2", "--pitch-upsample", "2"]),
-]
+report = {}
+for tag in ("cap_w32", "pitch_s2"):
+    hits = sorted(Path("/kaggle/input").rglob(f"{tag}/best.pt"))
+    if not hits:
+        print(f"  {tag}: no checkpoint mounted", flush=True)
+        continue
+    print(f"\n{'=' * 60}\n=== {tag}  ({hits[0]})\n{'=' * 60}", flush=True)
+    out = OUT / f"metres_{tag}.json"
+    subprocess.run([
+        sys.executable, str(scripts_dir / "eval_metres.py"),
+        "--ckpt", str(hits[0]),
+        "--gsr", str(OUT / "gsr"), "--frames", str(SCRATCH / "gsr"), "--split", "valid",
+        "--val-stride", "87", "--val-limit", "500", "--out", str(out),
+    ], check=False)
+    if out.exists():
+        report[tag] = json.loads(out.read_text())
 
-procs = []
-for tag, gpu, extra in ARMS:
-    env = {**os.environ, "CUDA_VISIBLE_DEVICES": gpu}
-    log = open(OUT / f"{tag}.log", "w")
-    cmd = [sys.executable, str(scripts_dir / "train_snet.py"), *COMMON, "--tag", tag, *extra]
-    print(f"launching {tag} on GPU {gpu}: {' '.join(cmd[-6:])}", flush=True)
-    procs.append((tag, subprocess.Popen(cmd, env=env, stdout=log, stderr=subprocess.STDOUT), log))
-
-t0 = time.time()
-for tag, proc, log in procs:
-    rc = proc.wait()
-    log.close()
-    print(f"{tag} exited rc={rc} after {time.time() - t0:.0f}s", flush=True)
-
-summary = {}
-for tag, _, _ in procs:
-    hist = OUT / "snet" / tag / "history.json"
-    entry = {}
-    if hist.exists():
-        blob = json.loads(hist.read_text())
-        h = blob["history"]
-        entry = {
-            "params_m": blob.get("params_m"),
-            "epoch_seconds": [e["seconds"] for e in h],
-            "samples_per_s": [e.get("samples_per_s") for e in h],
-            "peak_vram_gb": [e.get("peak_vram_gb") for e in h],
-            "ball_f1": [e["ball_val"]["4"]["f1"] for e in h if "ball_val" in e],
-            "pitch": [
-                {k: e["pitch_val"].get(k)
-                 for k in ("median_px", "p90_px", "pct_under_budget", "detected_fraction")}
-                for e in h if "pitch_val" in e
-            ],
-            "kendall": [e.get("weights") for e in h][-1:],
-        }
-    ck = OUT / "snet" / tag / "best.pt"
-    if ck.exists():
-        subprocess.run([
-            sys.executable, str(scripts_dir / "eval_step3.py"),
-            "--gsr", str(OUT / "gsr"), "--frames", str(SCRATCH / "gsr"), "--split", "valid",
-            "--val-stride", "87", "--val-limit", "500", "--skip-rfdetr",
-            "--snet-ckpt", f"{tag}={ck}", "--out", str(OUT / f"map_{tag}.json"),
-        ], check=False)
-        f = OUT / f"map_{tag}.json"
-        if f.exists():
-            entry["map"] = json.loads(f.read_text())["results"].get(tag)
-    summary[tag] = entry
-
-summary["_reference_w18_4ep_b8"] = {
-    "mAP": 0.2740, "ball_f1": 0.4913,
-    "pitch": {"median_px": 8.781, "detected_fraction": 0.8107, "pct_under_budget": 11.48},
-}
-summary["_reference_w32_4ep_b8"] = {"mAP": 0.2865, "ball_f1": 0.5104}
-(OUT / "concurrent_summary.json").write_text(json.dumps(summary, indent=2))
-print(json.dumps(summary, indent=2)[:4000], flush=True)
+(OUT / "metres_summary.json").write_text(json.dumps(report, indent=2))
+print("\n=== summary", flush=True)
+for tag, r in report.items():
+    print(f"\n{tag}: kp_stride={r['kp_stride']}, "
+          f"landmarks/frame median {r['landmarks_found_median']}, "
+          f"no-homography frames {r['frames_without_predicted_homography']}")
+    for k, v in r["results"].items():
+        if v.get("n"):
+            print(f"   {k:<20} median {v['median_m']:>6.2f} m  p90 {v['p90_m']:>6.2f}  "
+                  f">5m {v['pct_over_5m']:>5.1f}%  <1m {v['pct_under_1m']:>5.1f}%")
 print("\ndone", flush=True)

@@ -1178,6 +1178,77 @@ cheaper.
 
 ---
 
+## 9.11 Metres on the pitch: the pitch head is the whole problem, and it is a tail
+
+The first end-to-end number this project has produced. Artifact:
+`output/snet_metres/`. 500 valid frames, decomposed so the number carries a
+diagnosis.
+
+| configuration | median | p90 | >5 m | <1 m |
+|---|---|---|---|---|
+| GT boxes + GT homography | **0.08 m** | 0.24 | 0.1% | 99.0% |
+| predicted boxes + GT homography | 0.29 m | 0.91 | **0.0%** | 91.8% |
+| GT boxes + predicted homography | 0.76 m | **8.63** | **13.1%** | 59.2% |
+| the pipeline as it would ship | 0.91 m | 8.11 | 13.0% | 53.9% |
+
+The harness floor is 0.08 m, matching the 0.09 m residual §6.6 measured for the
+same construction — so the geometry code is sound and anything above it is model
+error.
+
+**The detector is not the problem.** It adds 0.21 m over the floor and puts
+**0.0%** of players beyond GS-HOTA's tolerance. All that work on mAP was measuring
+something that barely matters at the output.
+
+**The pitch head is the problem, and specifically its tail.** Its median (0.76 m) is
+fine. Its p90 is **8.63 m** and **13.1%** of players land beyond 5 m, where GS-HOTA
+scores them as nothing. A minority of frames produce a badly wrong homography, and
+that is what the end result is made of.
+
+**And the real failure rate is worse than that row shows**, because frames where the
+head found fewer than 4 landmarks produce no homography at all and are excluded
+from the statistics rather than counted as failures:
+
+| | no homography | of the rest, >5 m | unusable overall |
+|---|---|---|---|
+| kp_stride 4 | 11.4% | 13.0% | **22.9%** |
+| kp_stride 2 | 29.6% | 17.3% | **41.8%** |
+
+### kp_stride 2 is worse in metres, and §6.6 said why
+
+The pixel metric said stride 2 was the better change: landmark error 8.78 → 7.09 px,
+in-budget fraction 11.5% → 16.0%. **In metres it is substantially worse** — p90
+8.63 → 18.30 m, unusable 22.9% → 41.8% — because it found fewer landmarks (median
+**5** against 7) and left 29.6% of frames with no homography at all.
+
+§6.6 predicted exactly this and it was ignored. That section measured that a
+four-point fit loses a third of players beyond 5 m *with perfect keypoints*, while
+eight points survive σ = 8 px of noise. **Homography quality depends on landmark
+count and spread far more than on per-landmark precision**, and the stride change
+traded the thing that matters for the thing that was easy to measure.
+
+The median landmark count is 7, below the 8 that §6.6 identified as the safe floor.
+The pipeline has been operating on the fragile side of a boundary this project
+measured for itself and then optimised away from.
+
+### What this changes
+
+**Stop optimising landmark precision. Optimise landmark recall.** Concretely, in
+rough order of cost:
+
+1. Revert to `kp_stride = 4` — more detections, and it was already the faster head.
+2. Lower the decode threshold below 0.5. Nearly free, and a landmark recovered at
+   low confidence still constrains the fit that a missing one does not.
+3. Expand the landmark set, which §8.1 has recommended since before any training:
+   a median of 7 visible out of 33 is the binding constraint, and PnLCalib derives
+   many more from line, conic and tangent intersections.
+4. Temporal smoothing of the homography — every 2025 challenge entrant added
+   optical flow for this, and a per-frame fit that occasionally collapses is
+   exactly what it repairs.
+
+None of these is more training.
+
+---
+
 ## 10. What is left
 
 1. **Step 3, the control**: this detection head against RF-DETR on the same split

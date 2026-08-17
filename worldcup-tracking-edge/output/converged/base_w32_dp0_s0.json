@@ -1,0 +1,150 @@
+{
+  "train_seconds": 12887.4,
+  "epochs": 6,
+  "landmark_set": "base",
+  "data_parallel": false,
+  "ball_f1": [
+    0.4091,
+    0.4995,
+    0.4935
+  ],
+  "pitch": [
+    {
+      "median_px": 9.652,
+      "p90_px": 27.906,
+      "pct_under_budget": 9.05,
+      "detected_fraction": 0.5886
+    },
+    {
+      "median_px": 8.953,
+      "p90_px": 25.207,
+      "pct_under_budget": 10.63,
+      "detected_fraction": 0.8354
+    },
+    {
+      "median_px": 8.731,
+      "p90_px": 24.818,
+      "pct_under_budget": 11.5,
+      "detected_fraction": 0.8243
+    }
+  ],
+  "epoch_seconds": [
+    2164.7,
+    2071.7,
+    2073.0,
+    2023.2,
+    1988.4,
+    1995.1
+  ],
+  "peak_vram_gb": [
+    2.66,
+    2.66,
+    2.66,
+    2.66,
+    2.66,
+    2.66
+  ],
+  "rss_gb": [
+    3.22,
+    3.22,
+    3.3,
+    3.3,
+    3.33,
+    3.33
+  ],
+  "kendall": [
+    {
+      "ball": 3.2511,
+      "detection": 1.1458,
+      "pitch": 192.4474
+    }
+  ],
+  "metres_best_pitch.pt": {
+    "checkpoint": "/kaggle/working/snet/base_w32_dp0/best_pitch.pt",
+    "frames": 500,
+    "kp_stride": 4,
+    "kp_threshold": 0.15,
+    "ransac_m": 4.0,
+    "landmarks_found_median": 9.0,
+    "frames_without_predicted_homography": 14,
+    "frames_without_gt_homography": 19,
+    "results": {
+      "gt_boxes_gt_H": {
+        "label": "GT boxes + GT homography (harness sanity, expect ~0)",
+        "n": 7886,
+        "median_m": 0.083,
+        "p90_m": 0.238,
+        "pct_over_5m": 0.05,
+        "pct_under_1m": 98.96
+      },
+      "gt_boxes_pred_H": {
+        "label": "GT boxes + predicted homography (isolates the pitch head)",
+        "n": 7654,
+        "median_m": 0.755,
+        "p90_m": 3.95,
+        "pct_over_5m": 8.17,
+        "pct_under_1m": 61.21
+      },
+      "pred_boxes_gt_H": {
+        "label": "predicted boxes + GT homography (isolates the detector)",
+        "n": 6548,
+        "median_m": 0.295,
+        "p90_m": 0.894,
+        "pct_over_5m": 0.0,
+        "pct_under_1m": 92.14
+      },
+      "pred_boxes_pred_H": {
+        "label": "the pipeline as it would ship",
+        "n": 6345,
+        "median_m": 0.877,
+        "p90_m": 4.213,
+        "pct_over_5m": 8.68,
+        "pct_under_1m": 55.41
+      }
+    }
+  },
+  "metres_last.pt": {
+    "checkpoint": "/kaggle/working/snet/base_w32_dp0/last.pt",
+    "frames": 500,
+    "kp_stride": 4,
+    "kp_threshold": 0.15,
+    "ransac_m": 4.0,
+    "landmarks_found_median": 9.0,
+    "frames_without_predicted_homography": 19,
+    "frames_without_gt_homography": 19,
+    "results": {
+      "gt_boxes_gt_H": {
+        "label": "GT boxes + GT homography (harness sanity, expect ~0)",
+        "n": 7886,
+        "median_m": 0.083,
+        "p90_m": 0.238,
+        "pct_over_5m": 0.05,
+        "pct_under_1m": 98.96
+      },
+      "gt_boxes_pred_H": {
+        "label": "GT boxes + predicted homography (isolates the pitch head)",
+        "n": 7594,
+        "median_m": 0.726,
+        "p90_m": 3.406,
+        "pct_over_5m": 7.49,
+        "pct_under_1m": 62.9
+      },
+      "pred_boxes_gt_H": {
+        "label": "predicted boxes + GT homography (isolates the detector)",
+        "n": 6611,
+        "median_m": 0.264,
+        "p90_m": 0.832,
+        "pct_over_5m": 0.02,
+        "pct_under_1m": 93.18
+      },
+      "pred_boxes_pred_H": {
+        "label": "the pipeline as it would ship",
+        "n": 6353,
+        "median_m": 0.825,
+        "p90_m": 3.668,
+        "pct_over_5m": 7.81,
+        "pct_under_1m": 58.44
+      }
+    }
+  }
+}

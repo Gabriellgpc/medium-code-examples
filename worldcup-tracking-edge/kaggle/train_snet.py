@@ -253,6 +253,7 @@ def main() -> None:
                     help="continue from a train_state.pt; 'auto' uses the one in "
                          "this run's directory, and starts fresh if absent. "
                          "--epochs must stay the full schedule length.")
+    ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--data-parallel", action="store_true",
                     help="wrap in nn.DataParallel when several GPUs are visible. "
                          "Off by default: it costs throughput (0.81x, section 9.9) "
@@ -262,6 +263,20 @@ def main() -> None:
                          "cleanly. Splits one long schedule across several Kaggle "
                          "sessions; --epochs still names the full schedule.")
     args = ap.parse_args()
+
+    # Seeded here rather than at import, so the value is a run parameter that
+    # lands in history.json with everything else. Section 9.16 measured 4.71
+    # points of spread on the headline metric across three runs that were all
+    # nominally seed 0, so this does not make runs reproducible — it makes the
+    # difference between two runs attributable to something named.
+    #
+    # Not changed while a comparison is in flight: dataloader workers inherit the
+    # parent's numpy state through fork, so every worker draws the same
+    # augmentation stream as its siblings. That is a real defect, and fixing it
+    # now would mean the second seed differed from the first by two things
+    # instead of one.
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
     heads = tuple(h.strip() for h in args.heads.split(",") if h.strip())
     tag = args.tag or f"{'-'.join(heads)}_s{args.stem_stride}_up{args.head_upsample}"
@@ -493,6 +508,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    np.random.seed(0)
-    torch.manual_seed(0)
     main()

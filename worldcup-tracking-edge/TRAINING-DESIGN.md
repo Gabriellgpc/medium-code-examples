@@ -1627,6 +1627,94 @@ is only that the experiment can now be run to completion.
 
 ---
 
+## 9.18 Both arms to convergence: the expanded set wins, and under-training was the confound
+
+The first runs of this experiment that reached the end of their schedule. Both
+arms, six epochs, DataParallel off, seed 0, everything else held at what §9.8 and
+§9.11 settled. Artifacts: `output/converged/`.
+
+Both arms were re-run rather than reusing §9.15's 33-landmark reference, because
+§9.17 changed BatchNorm semantics — that 8.0% was measured with 4 samples per GPU
+and per-device statistics. Reusing it would have folded two changes into one
+comparison, which is §9.15's mistake wearing different clothes.
+
+### The result, on `last.pt` (fully annealed; §9.10 explains why not `best_pitch`)
+
+| | 33 landmarks | 47 landmarks |
+|---|---|---|
+| landmarks found per frame | 9 | **14** |
+| frames with no homography | 19/500 | **0/500** |
+| landmark error | **8.73 px** | 9.13 px |
+| landmark detection rate | 0.824 | 0.831 |
+| pipeline median | 0.825 m | **0.721 m** |
+| pipeline p90 | 3.668 m | **2.153 m** |
+| players > 5 m, *as the table reports it* | 7.81% | **2.40%** |
+| **players > 5 m, all players** | **11.41%** | **2.40%** |
+
+**The last row is the honest one, and the tables do not produce it by default.**
+`eval_metres` scores only players whose frame yielded a homography, so the 33-point
+arm's 7.81% is computed after dropping 258 of its 6611 predicted boxes — the ones
+in the 19 frames where the geometry failed outright. A player who cannot be placed
+at all is a worse outcome than one placed 6 m off, not an excluded one. Counting
+them as failures gives **11.41%**. The 47-point arm loses no frames, so its two
+numbers are the same number.
+
+The gap is **11.41% against 2.40%, a factor of 4.8**.
+
+### Under-training was the confound, and it was worth the retraction
+
+§9.15 concluded "the head did not deliver" from landmark detection of 0.62 against
+0.83. At convergence the expanded head reaches **0.831**, level with the base arm's
+0.824. The risk named before the first run — that a sample point at 30° on a circle
+has no local feature and must be inferred from the arc's shape — was real but
+temporary. It cost four extra epochs, not the design.
+
+Per-landmark error stays worse (9.13 px against 8.73), consistently across every
+run. That is a true cost and it is simply not the deciding one: 14 landmarks at
+9.1 px constrain a homography better than 9 at 8.7 px. §6.6 said eight or more,
+well spread, and the count is what was binding.
+
+### How much of this is one run
+
+The gap is 9.0 points against the 4.71-point spread §9.16 measured across three
+nominally identical runs. Larger, but that spread came from 2-epoch runs with
+DataParallel on, so it is not the right error bar for 6-epoch runs without it.
+
+**By this document's own §7 rule, one run per arm is not an effect.** A second seed
+per arm is running. What can be said now: the direction is supported by a
+mechanism that was predicted in advance (§9.14 measured the degeneracy floor before
+any training), reproduced in the geometry across all four expanded runs, and shows
+up in the decomposition exactly where the mechanism says it should — the pitch-head
+row, not the detector row, which sits at 0.02% in both arms.
+
+### Two other things this run measured
+
+**RSS held flat, which confirms §9.17 on a full schedule:**
+
+```
+33 landmarks:  3.22  3.22  3.30  3.30  3.33  3.33 GB
+47 landmarks:  3.18  3.18  3.32  3.32  3.30  3.32 GB
+```
+
++0.11 and +0.14 GB across six epochs, against 13.38 → 22.11 GB across two with
+DataParallel on.
+
+**Removing DataParallel is 1.36x faster**, from the clean comparison — the expanded
+arm is attempt 3's configuration with the wrapper as the only difference. Attempt 3
+managed two epochs before the OOM killer, so the comparison is on the first two of
+each: 2996 / 2985 s became 2206 / 2188 s, a mean of 2990 against 2197. §9.9 had
+estimated 0.81x from a run with other variables moving; the direction was right and
+the magnitude was understated.
+
+One oddity worth noting rather than explaining: the expanded arm's epochs got
+*slower* over the run (2206 → 2420 s) while the base arm's got faster
+(2165 → 1995 s). Both had identical evaluation schedules. I have no mechanism for
+this and did not investigate; it is most likely Kaggle host variance, and it is
+recorded here so a future comparison of epoch times knows not to trust a single
+epoch.
+
+---
+
 ## 10. What is left
 
 1. **Step 3, the control**: this detection head against RF-DETR on the same split

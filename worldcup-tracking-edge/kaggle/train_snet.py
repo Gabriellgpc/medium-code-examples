@@ -254,6 +254,11 @@ def main() -> None:
                          "this run's directory, and starts fresh if absent. "
                          "--epochs must stay the full schedule length.")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--ball-stem-skip", action="store_true",
+                    help="route stride-2 stem features into the ball head. Section "
+                         "9.20: the ball is 1.08 trunk cells, and the plain head "
+                         "cannot place a sub-cell object. Measured 1.18 ms FASTER "
+                         "on the iGPU, since the refine conv drops to quarter area.")
     ap.add_argument("--data-parallel", action="store_true",
                     help="wrap in nn.DataParallel when several GPUs are visible. "
                          "Off by default: it costs throughput (0.81x, section 9.9) "
@@ -295,6 +300,7 @@ def main() -> None:
         width=args.trunk_width, stem_stride=args.stem_stride,
         head_upsample=args.head_upsample, pitch_upsample=args.pitch_upsample,
         landmark_set=args.landmark_set, heads=heads,
+        ball_stem_skip=args.ball_stem_skip,
     )
     model = SNetModel(cfg).to(device)
 

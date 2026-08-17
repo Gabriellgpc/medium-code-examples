@@ -36,6 +36,7 @@ OUT = Path("/kaggle/working")
 EPOCHS = 6
 LANDMARK_SET = "expanded"  # substituted per kernel: expanded | base
 SEED = 0            # substituted per kernel
+BALL_STEM_SKIP = False  # substituted per kernel
 
 
 def sh(*cmd, check=True):
@@ -73,7 +74,7 @@ for split in prepare_gsr.SPLITS:
         prepare_gsr.prepare(root / split, split)
 print(f"data ready in {time.time() - t0:.0f}s", flush=True)
 
-TAG = f"{LANDMARK_SET}_w32_dp0_s{SEED}"
+TAG = f"{LANDMARK_SET}_w32_dp0_s{SEED}" + ("_ballskip" if BALL_STEM_SKIP else "")
 print(f"\n{'=' * 60}\n=== {TAG}: {LANDMARK_SET} landmarks, w32, {EPOCHS} epochs, "
       f"DataParallel OFF, seed {SEED}\n{'=' * 60}", flush=True)
 t0 = time.time()
@@ -85,13 +86,14 @@ try:
         "--val-stride", "29", "--val-limit", "1500",
         "--workers", "2", "--eval-every", "2", "--tag", TAG, "--resume", "auto",
         "--seed", str(SEED),
-    ], check=True)
+    ] + (["--ball-stem-skip"] if BALL_STEM_SKIP else []), check=True)
 except subprocess.CalledProcessError:
     traceback.print_exc()
 train_seconds = round(time.time() - t0, 1)
 
 report = {"train_seconds": train_seconds, "epochs": EPOCHS, "seed": SEED,
-          "landmark_set": LANDMARK_SET, "data_parallel": False}
+          "landmark_set": LANDMARK_SET, "data_parallel": False,
+          "ball_stem_skip": BALL_STEM_SKIP}
 hist = OUT / "snet" / TAG / "history.json"
 if hist.exists():
     h = json.loads(hist.read_text())["history"]
@@ -121,6 +123,8 @@ for ck_name in ("best_pitch.pt", "last.pt"):
     if out.exists():
         report[f"metres_{ck_name}"] = json.loads(out.read_text())
 
-(OUT / f"converged_{LANDMARK_SET}_s{SEED}.json").write_text(json.dumps(report, indent=2))
+suffix = "_ballskip" if BALL_STEM_SKIP else ""
+(OUT / f"converged_{LANDMARK_SET}_s{SEED}{suffix}.json").write_text(
+    json.dumps(report, indent=2))
 print(json.dumps(report, indent=2)[:3500], flush=True)
 print("\ndone", flush=True)

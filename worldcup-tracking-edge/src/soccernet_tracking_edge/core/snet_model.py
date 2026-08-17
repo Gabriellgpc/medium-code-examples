@@ -156,6 +156,10 @@ class SNetConfig:
     # inside the 2-3 px budget of section 6.6 — so the expensive full-resolution
     # path buys nothing here, and the target drops from 32.4 MB per sample to 2.0.
     pitch_upsample: int = 1
+    # Route stride-2 stem features into the ball head (see BallHead). Defaults off
+    # so every checkpoint trained before 2026-08-17 still loads: the flag travels in
+    # the config, and the two heads have different parameter shapes.
+    ball_stem_skip: bool = False
     heads: tuple[str, ...] = field(default=("ball", "detection", "pitch"))
 
     @property
@@ -177,14 +181,24 @@ class SNetBackbone(nn.Module):
         # convs so stem_stride=2 puts one stride on each and stays symmetric.
         s1 = 2 if cfg.stem_stride >= 2 else 1
         s2 = 2 if cfg.stem_stride >= 4 else 1
-        self.stem = nn.Sequential(
+        # Split into two halves so the midpoint is reachable. `stem_a` ends at
+        # stride 2 under the default stem_stride 4, and that is the highest
+        # resolution at which any learned feature exists in this network. The ball
+        # is 13 native px, so 4.3 px at the 640-wide input and **1.08 cells** at the
+        # trunk's stride 4 — the ball head has to place a sub-cell object from a
+        # single trunk cell. `BallHead` taps this midpoint to get around that.
+        self.stem_a = nn.Sequential(
             nn.Conv2d(cin, 64, 3, stride=s1, padding=1, bias=False),
             nn.BatchNorm2d(64, momentum=BN_MOMENTUM),
             nn.ReLU(inplace=True),
+        )
+        self.stem_b = nn.Sequential(
             nn.Conv2d(64, 64, 3, stride=s2, padding=1, bias=False),
             nn.BatchNorm2d(64, momentum=BN_MOMENTUM),
             nn.ReLU(inplace=True),
         )
+        self.stem_channels = 64
+        self._register_load_state_dict_pre_hook(self._rename_legacy_stem)
 
         self.layer1 = self._make_bottleneck_layer(64, 32, 2)   # -> 128 channels
         c1 = 32 * Bottleneck.expansion
@@ -203,6 +217,25 @@ class SNetBackbone(nn.Module):
             ]))
             prev = target
         self.out_channels = sum(widths)
+
+    @staticmethod
+    def _rename_legacy_stem(state_dict, prefix, *_args) -> None:
+        """Map `stem.N.*` onto `stem_a`/`stem_b`, in place.
+
+        Splitting the stem to expose its stride-2 midpoint renamed six tensors and
+        would otherwise have silently orphaned every checkpoint trained before
+        2026-08-17 — including the four converged runs of section 9.18, which are
+        the only trained weights that exist. The tensors are bit-identical; only the
+        path changed. Indices 2 and 5 are ReLUs and carry nothing.
+        """
+        moves = {0: ("stem_a", 0), 1: ("stem_a", 1), 3: ("stem_b", 0), 4: ("stem_b", 1)}
+        for key in [k for k in state_dict if k.startswith(f"{prefix}stem.")]:
+            tail = key[len(f"{prefix}stem."):]
+            idx, _, rest = tail.partition(".")
+            if not idx.isdigit() or int(idx) not in moves:
+                continue
+            block, new_idx = moves[int(idx)]
+            state_dict[f"{prefix}{block}.{new_idx}.{rest}"] = state_dict.pop(key)
 
     @staticmethod
     def _make_bottleneck_layer(cin: int, cout: int, blocks: int) -> nn.Sequential:
@@ -236,8 +269,14 @@ class SNetBackbone(nn.Module):
                 ))
         return ops
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.layer1(self.stem(x))
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Returns ``(fused_trunk_features, stride2_stem_features)``.
+
+        The second element is only consumed by `BallHead`; every other head takes
+        the first and ignores it.
+        """
+        hi = self.stem_a(x)
+        x = self.layer1(self.stem_b(hi))
         xs = [x]
         for transition, stage in zip(self.transitions, self.stages, strict=True):
             nxt = []
@@ -245,11 +284,12 @@ class SNetBackbone(nn.Module):
                 nxt.append(op(xs[i] if i < len(xs) else xs[-1]))
             xs = stage(nxt)
         size = xs[0].shape[-2:]
-        return torch.cat(
+        fused = torch.cat(
             [xs[0]] + [F.interpolate(x, size=size, mode="bilinear", align_corners=False)
                        for x in xs[1:]],
             dim=1,
         )
+        return fused, hi
 
 
 class Head(nn.Module):
@@ -303,6 +343,61 @@ class Head(nn.Module):
         return self.out(x)
 
 
+class BallHead(nn.Module):
+    """Ball heatmap from trunk semantics *plus* stride-2 stem features.
+
+    The plain `Head` gives the ball a 4x bilinear upsample of stride-4 features, and
+    section 9.20 measured what that costs: recall 0.351 at tau=4, with the head
+    silent on 58% of the frames that contain a ball, and no threshold recovering it
+    — the low-confidence peaks are noise rather than shy detections.
+
+    The reason is a size mismatch nothing downstream can fix. A ball is 13 px in the
+    native frame, 4.3 px at the 640-wide input, and **1.08 cells** at stride 4. A
+    player is 3.7 cells. So the trunk resolves a player and merely registers that
+    something happened in one cell for the ball, and the head then has to invent
+    where inside that cell it was.
+
+    WASB's answer was to delete the stem strides and run the whole trunk at full
+    resolution. Step 0 measured that at 216 ms on the target iGPU (4.6 FPS), which
+    is not shippable. This is the cheap version of the same idea: the semantics stay
+    at stride 4 where they are affordable, and only the *localisation* gets real
+    stride-2 evidence, fused before the final upsample.
+
+    The refine convolution also moves from 384x640 down to 192x320, which is 4x less
+    work, so the added 1x1 on the skip is partly paid for. Whether 2.15 px of stem
+    feature carries enough signal is the open question this is built to answer.
+    """
+
+    def __init__(self, cin: int, stem_cin: int, mid: int, bias_init: float = -4.6):
+        super().__init__()
+        self.project = nn.Sequential(
+            nn.Conv2d(cin, mid, 3, padding=1, bias=False),
+            nn.BatchNorm2d(mid, momentum=BN_MOMENTUM),
+            nn.ReLU(inplace=True),
+        )
+        # 1x1 rather than 3x3: this path exists for *where*, not *what*, and a 3x3
+        # at stride 2 would cost more than the refine it feeds.
+        self.skip = nn.Sequential(
+            nn.Conv2d(stem_cin, mid, 1, bias=False),
+            nn.BatchNorm2d(mid, momentum=BN_MOMENTUM),
+            nn.ReLU(inplace=True),
+        )
+        self.refine = nn.Sequential(
+            nn.Conv2d(mid * 2, mid, 3, padding=1, bias=False),
+            nn.BatchNorm2d(mid, momentum=BN_MOMENTUM),
+            nn.ReLU(inplace=True),
+        )
+        self.out = nn.Conv2d(mid, 1, 1)
+        nn.init.constant_(self.out.bias, bias_init)
+
+    def forward(self, feats: torch.Tensor, stem: torch.Tensor) -> torch.Tensor:
+        x = self.project(feats)
+        x = F.interpolate(x, size=stem.shape[-2:], mode="bilinear", align_corners=False)
+        x = self.refine(torch.cat([x, self.skip(stem)], dim=1))
+        x = F.interpolate(x, scale_factor=2, mode="bilinear", align_corners=False)
+        return self.out(x)
+
+
 class SNetModel(nn.Module):
     """Trunk plus the selected heads. Outputs are logits at the trunk's stride."""
 
@@ -314,7 +409,11 @@ class SNetModel(nn.Module):
 
         self.heads = nn.ModuleDict()
         if "ball" in cfg.heads:
-            self.heads["ball"] = Head(c, mid, 1, bias_init=-4.6, upsample=up)
+            self.heads["ball"] = (
+                BallHead(c, self.backbone.stem_channels, mid)
+                if cfg.ball_stem_skip
+                else Head(c, mid, 1, bias_init=-4.6, upsample=up)
+            )
         if "detection" in cfg.heads:
             # Boxes are large objects; they do not need the ball head's resolution,
             # so detection stays at the trunk stride and costs nothing extra.
@@ -332,8 +431,11 @@ class SNetModel(nn.Module):
             # and build_pitch_lines() still produces the data if that gets built.
 
     def forward(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
-        feats = self.backbone(x)
-        return {name: head(feats) for name, head in self.heads.items()}
+        feats, stem = self.backbone(x)
+        return {
+            name: head(feats, stem) if isinstance(head, BallHead) else head(feats)
+            for name, head in self.heads.items()
+        }
 
     @property
     def n_params(self) -> int:

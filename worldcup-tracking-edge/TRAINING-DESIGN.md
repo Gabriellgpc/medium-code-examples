@@ -1627,18 +1627,18 @@ is only that the experiment can now be run to completion.
 
 ---
 
-## 9.18 Both arms to convergence: the expanded set wins, and under-training was the confound
+## 9.18 Both arms to convergence, two seeds each: the expanded set wins 2.26% to 11.71%
 
 The first runs of this experiment that reached the end of their schedule. Both
-arms, six epochs, DataParallel off, seed 0, everything else held at what §9.8 and
-§9.11 settled. Artifacts: `output/converged/`.
+arms, six epochs, DataParallel off, seeds 0 and 1, everything else held at what
+§9.8 and §9.11 settled. Artifacts: `output/converged/`.
 
 Both arms were re-run rather than reusing §9.15's 33-landmark reference, because
 §9.17 changed BatchNorm semantics — that 8.0% was measured with 4 samples per GPU
 and per-device statistics. Reusing it would have folded two changes into one
 comparison, which is §9.15's mistake wearing different clothes.
 
-### The result, on `last.pt` (fully annealed; §9.10 explains why not `best_pitch`)
+### The result at seed 0, on `last.pt` (fully annealed; §9.10 explains why not `best_pitch`)
 
 | | 33 landmarks | 47 landmarks |
 |---|---|---|
@@ -1674,18 +1674,40 @@ run. That is a true cost and it is simply not the deciding one: 14 landmarks at
 9.1 px constrain a homography better than 9 at 8.7 px. §6.6 said eight or more,
 well spread, and the count is what was binding.
 
-### How much of this is one run
+### The second seed: settled
 
-The gap is 9.0 points against the 4.71-point spread §9.16 measured across three
-nominally identical runs. Larger, but that spread came from 2-epoch runs with
-DataParallel on, so it is not the right error bar for 6-epoch runs without it.
+Both arms re-run at seed 1, identical in every other respect. All four runs, on
+`last.pt`:
 
-**By this document's own §7 rule, one run per arm is not an effect.** A second seed
-per arm is running. What can be said now: the direction is supported by a
-mechanism that was predicted in advance (§9.14 measured the degeneracy floor before
-any training), reproduced in the geometry across all four expanded runs, and shows
-up in the decomposition exactly where the mechanism says it should — the pitch-head
-row, not the detector row, which sits at 0.02% in both arms.
+| arm | seed | lm/frame | no-H | landmark px | detection | median | p90 | reported >5 m | **all-players >5 m** |
+|---|---|---|---|---|---|---|---|---|---|
+| 33 | 0 | 9 | 19 | 8.73 | 0.824 | 0.825 m | 3.668 | 7.81% | **11.41%** |
+| 33 | 1 | 9 | 20 | 8.74 | 0.823 | 0.795 m | 3.851 | 8.18% | **12.01%** |
+| 47 | 0 | 14 | 0 | 9.13 | 0.831 | 0.721 m | 2.153 | 2.40% | **2.40%** |
+| 47 | 1 | 14 | 0 | 9.10 | 0.837 | 0.715 m | 2.127 | 2.12% | **2.12%** |
+
+| | mean | seed-to-seed spread |
+|---|---|---|
+| 33 landmarks | 11.71% | 0.60 pts |
+| 47 landmarks | **2.26%** | 0.28 pts |
+
+**The between-arm gap is 9.45 points against a largest within-arm spread of 0.60 —
+a ratio of 15.7 to 1.** A factor of 5.2 on the headline metric. Two seeds is not a
+significance test, but the separation is not close enough for one to matter.
+
+The §9.16 variance also resolves itself. That 4.71-point spread came from 2-epoch
+runs; at six epochs the same measurement varies by 0.28–0.60 points. **The variance
+was under-training, not the metric.** Which means §9.16's retraction was right for
+the right reason, and the fix for it was epochs rather than seeds — though the
+seeds are what proved it.
+
+Everything else is consistent across seeds: 14 landmarks per frame against 9, zero
+frames without a homography against 19–20, landmark error worse by roughly 0.4 px,
+detection level. The decomposition puts the entire difference in the pitch-head
+row, with the detector row at 0.00–0.02% in all four runs, which is where the
+mechanism §9.14 predicted in advance says it should be.
+
+**Decision: the expanded 47-landmark set is the configuration.**
 
 ### Two other things this run measured
 

@@ -1737,6 +1737,62 @@ epoch.
 
 ---
 
+## 9.19 The 47-point head is free, and §10's latency number was stale
+
+`scripts/arch_latency_sweep.py` picked the architecture when the pitch head had 33
+output channels. §9.18 then settled on 47, widening that head's final convolution
+by 14 channels at 96x160 — so the 25.1 ms / 39.9 FPS §10 quotes describes a
+configuration nobody runs. Re-measured on the shipped graph, from the converged
+checkpoint. Artifact: `output/latency_final.json`.
+
+### What it cost to get an honest number
+
+The first run said the **47**-point head was **31% faster** than the 33-point one on
+the iGPU. More output channels cannot cost less, so that is not a result, it is a
+broken measurement — and it is the §7 rule catching a mechanism-free number before
+it reached a table.
+
+Reversing the arm order made the CPU effect vanish (+2.1% instead of −9.2%), which
+identified drift over the life of the process rather than architecture. But the
+iGPU kept its sign, and the 33-point FP32 cell moved **47.81 → 36.51 ms between two
+runs of the same measurement**. At that point the honest conclusion was that the
+device could not resolve the question at 50 runs, not that either number was right.
+
+Four rounds, arm order alternating each round, 100 timed runs after 20 warmup:
+
+| device | precision | 33 landmarks | 47 landmarks | difference |
+|---|---|---|---|---|
+| Iris Xe | FP32 | 31.97 ms (spread 3.37) | 31.73 ms (spread 1.09) | −0.24 ms |
+| Iris Xe | FP16 | 32.06 ms (spread 1.48) | 32.53 ms (spread 3.54) | +0.47 ms |
+| i7-12700H | FP32 | 83.98 ms (spread 0.95) | 83.37 ms (spread 1.89) | −0.62 ms |
+| i7-12700H | FP16 | 82.58 ms (spread 2.10) | 82.03 ms (spread 2.93) | −0.54 ms |
+
+**Every cell is unresolved**: the round-to-round spread (1.1–3.5 ms) is larger than
+the difference (0.24–0.62 ms) in all four. The correct statement is *the 47-point
+head costs nothing this setup can measure*, not that it is free and not that it is
+faster. §9.18's accuracy win came without a latency bill.
+
+### The shipped number
+
+**≈32.0 ms on the Iris Xe, ≈31 FPS**, FP32 or FP16, forward pass only.
+
+That is **slower than the 25.1 ms / 39.9 FPS §10 claims**, and I have not chased
+the gap. Candidates: the sweep ran random weights through a config built from the
+same knobs rather than the trained graph, and it ran on an earlier OpenVINO. Until
+someone reproduces it, **§10's number should not be quoted** — this one measured
+the graph that ships.
+
+Two things worth carrying:
+
+- **FP16 buys nothing here.** 32.06 against 31.97 on the iGPU is inside the spread.
+  Any real speedup on this device has to come from INT8, which is untested for
+  SNet.
+- **Still above the 25 FPS target**, at 31 FPS, but the margin is now 1.25x rather
+  than the 1.6x §10 implied. Timing excludes JPEG decode, resize, normalisation,
+  peak finding and the homography fit, all of which the deployed pipeline pays.
+
+---
+
 ## 10. What is left
 
 1. **Step 3, the control**: this detection head against RF-DETR on the same split
@@ -1762,10 +1818,26 @@ epoch.
    than the WASB-faithful design, and nearly double the 25 FPS target. Trunk width
    32 also fits comfortably now (25.1 ms, 39.9 FPS), which makes capacity the
    obvious next lever.
-3. **Convergence.** Everything above is three epochs. The relative conclusions are
-   what this budget can support; absolute numbers need roughly 7 GPU-hours for a
-   full run, which is affordable but should be spent once the pitch head is in.
-4. **A second seed**, before the recall finding is written up as a finding.
+
+   > **Superseded by §9.19 — do not quote these numbers.** Re-measured on the
+   > trained graph in the shipped configuration, the w32 model runs at **≈32.0 ms /
+   > ≈31 FPS** on the same iGPU, not 25.1 ms / 39.9 FPS. The gap has not been
+   > chased; the sweep above used random weights and an earlier OpenVINO. The
+   > *relative* conclusions that chose the architecture still stand — it is the
+   > absolute figures that should come from §9.19.
+3. ~~**Convergence**~~ — **done, §9.18.** Six epochs per arm, two seeds each.
+4. ~~**A second seed**~~ — **done, §9.18.** Seed-to-seed spread is 0.28–0.60 points
+   at convergence, against the 4.71 points §9.16 measured at two epochs.
+5. **The ball head is now the weakest part of the model.** F1 ≈0.51 at τ=4 px, and
+   a 750-frame render of an unseen sequence found it in 36% of frames. Candidate
+   grafts were scouted in §4: TOTNet's visibility-weighted loss (`build_ball_track`
+   already exports the flag) and BlurBall's blur-centre relabelling.
+6. **Athlete class confusion in crowds.** Watching the render, goalmouth scrambles
+   produce several boxes labelled *keeper* at once where there should be one a
+   side. This is an observation from looking, not a measurement — per-class AP on
+   the valid split would say whether it is real and how often.
+7. **INT8 for SNet.** §9.19 measured FP16 as worth nothing on this iGPU, so INT8 is
+   the only remaining precision lever.
 
 ---
 

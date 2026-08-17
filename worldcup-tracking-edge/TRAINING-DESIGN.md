@@ -788,6 +788,8 @@ and the absolute figures are not comparable to any published result.
 | solo ball | 1.95 M | 0.4415 | 0.3325 | 2.003 | — | 5,115 |
 | solo detection | 2.10 M | — | — | — | **1.1831** | 4,932 |
 | **joint** | **2.19 M** | **0.4668** | **0.3695** | **1.601** | **1.1794** | **5,395** |
+> *Ball F1 and recall in this table use the pre-§9.20 counting and are optimistic; the comparison between the arms is unaffected, since the same error applies to both.*
+
 
 - **Detection is unchanged**: 1.1794 joint against 1.1831 solo, a 0.3% difference
   that is noise. Adding a ball head cost the detector nothing.
@@ -945,6 +947,8 @@ epoch, remarkably steady). Artifacts: `output/snet_converged/`.
 | detection mAP | 0.2574 | **0.2714** | +5.4% |
 | detection AP50 | 0.5463 | **0.5975** | +9.4% |
 | detection AP75 | 0.2031 | **0.1994** | **−1.8%** |
+> *Ball F1 and recall in this table use the pre-§9.20 counting and are optimistic; the comparison between the arms is unaffected, since the same error applies to both.*
+
 
 **The prediction made before the run held exactly.** AP50 improved while AP75 did
 not move, so the model is finding objects better and placing boxes no better. The
@@ -1024,6 +1028,8 @@ problem than the one before it.
 | **mAP small** | 0.1534 | **0.1789** | **+16.6%** |
 | ball F1@4px | 0.4913 | **0.5104** | +3.9% |
 | seconds/epoch | 1861 | 1872 | **+0.6%** |
+> *Ball F1 and recall in this table use the pre-§9.20 counting and are optimistic; the comparison between the arms is unaffected, since the same error applies to both.*
+
 
 **The diagnosis from §9.7 is confirmed by its converse.** Twelve epochs moved AP50
 (+9.4%) and not AP75 (−1.8%); width moves AP75 (+13.7%) and small objects (+16.6%)
@@ -1793,6 +1799,89 @@ Two things worth carrying:
 
 ---
 
+## 9.20 The ball: a free win that was not there, and a metric bug it exposed
+
+Before funding a training change for the ball head, two cheap questions. Neither
+answered the way I expected, and the second one invalidates numbers this document
+has been quoting since Step 1.
+
+### The diagnosis: the head does not know, it is not merely shy
+
+The converged ball head fires in 42% of the frames that contain a ball. The counter
+that says why:
+
+```
+tau = 4:   TP 489   FP 239   FN 669
+tau = 12:  TP 611   FP 117   FN 669
+```
+
+**FN is identical at every tolerance from 1 to 12 px.** Widening tau converts FP
+into TP and never touches FN, so those 669 are not frames aimed at badly — they are
+frames where the decoder returned nothing at all. `soft_argmax` needs a pixel above
+0.5, and that 0.5 came from WASB rather than from any measurement here.
+
+§9.12 asked the equivalent question of the pitch head and halved the unusable
+fraction for free, so this was worth ten minutes of GPU before four hours.
+
+### The answer is no, and that is worth knowing
+
+One inference pass, ten decode thresholds, scored on identical frames (τ=4):
+
+| threshold | fired | TP | FP | precision | F1 |
+|---|---|---|---|---|---|
+| 0.05 | 1480 | 92 | 1388 | 0.062 | 0.116 |
+| 0.15 | 1288 | 312 | 976 | 0.242 | 0.351 |
+| 0.30 | 980 | 431 | 549 | 0.440 | 0.467 |
+| **0.50** | 728 | 489 | 239 | 0.672 | **0.519** |
+| 0.70 | 330 | 296 | 34 | 0.897 | 0.350 |
+
+At 0.05 the head fires on 1480 of 1500 frames and **92** land within 4 px. The
+low-confidence peaks are noise, not shy detections. **0.50 was already optimal**;
+there is no free recall here, and the head genuinely does not know where the ball
+is. That is a capacity, resolution or data problem, and it cost 10 minutes to
+establish instead of 4 hours.
+
+(At τ=8 threshold 0.40 wins by 1.8%, which is not worth a change.)
+
+### The bug: recall had the wrong denominator
+
+`classify()`'s own comment said a prediction beyond tau is *both* a miss and a
+false alarm — WASB's counting. The code returned `"FP"` alone. So a far-away fire
+landed in neither TP nor FN and **fell out of recall's denominator entirely**.
+
+On the converged checkpoint, valid split, 1393 of 1500 frames contain a ball:
+
+| τ | threshold | reported recall | true recall | reported F1 | **true F1** |
+|---|---|---|---|---|---|
+| 2 | 0.50 | 0.296 | 0.202 | 0.3349 | **0.2650** |
+| 4 | 0.50 | 0.422 | 0.351 | 0.5186 | **0.4611** |
+| 8 | 0.40 | 0.524 | 0.434 | 0.6032 | **0.5390** |
+
+**Every ball number in this document before 2026-08-17 is optimistic**, including
+§9.5's 0.5069, §9.8's 0.5104 and §9.18's 0.5186. The bias is worst exactly when the
+model fires badly, because that is when far-away fires are most common — it
+flatters in the direction that hides the problem.
+
+Two things this does *not* change. The counting error is identical across every
+run, so **relative comparisons stand**: joint-vs-solo in §9.5, capacity in §9.8,
+landmark arms in §9.18. And the choice of operating point is unaffected — 0.50 is
+still best at τ=4 under either counting.
+
+Fixed in `classify()`, which now returns one *or two* labels, with
+`scripts/test_ball_metrics.py` pinning the property that broke: **TP + FN must
+equal the number of frames containing a ball**. The regression cases are explicit —
+five hits plus five far fires must read recall 0.5, where the old code said 1.0.
+
+Accuracy was fixed alongside it: it now divides by the frame count rather than the
+sum of the counters, which a two-label frame would otherwise inflate.
+
+### The honest baseline going in
+
+**F1 0.461 at τ=4, recall 0.351, precision 0.672.** Any ball training change gets
+measured against that, not against 0.519.
+
+---
+
 ## 10. What is left
 
 1. **Step 3, the control**: this detection head against RF-DETR on the same split
@@ -1828,8 +1917,12 @@ Two things worth carrying:
 3. ~~**Convergence**~~ — **done, §9.18.** Six epochs per arm, two seeds each.
 4. ~~**A second seed**~~ — **done, §9.18.** Seed-to-seed spread is 0.28–0.60 points
    at convergence, against the 4.71 points §9.16 measured at two epochs.
-5. **The ball head is now the weakest part of the model.** F1 ≈0.51 at τ=4 px, and
-   a 750-frame render of an unseen sequence found it in 36% of frames. Candidate
+5. **The ball head is now the weakest part of the model.** **F1 0.461 at τ=4 px**
+   (recall 0.351, precision 0.672 — see §9.20; the 0.51 this line used to quote came
+   from the counting bug fixed there), and
+   a 750-frame render of an unseen sequence found it in 36% of frames. §9.20 also
+   ruled out a free win from the decode threshold: 0.50 was already optimal, and
+   lowering it produces noise rather than shy detections. Candidate
    grafts were scouted in §4: TOTNet's visibility-weighted loss (`build_ball_track`
    already exports the flag) and BlurBall's blur-centre relabelling.
 6. **Athlete class confusion in crowds.** Watching the render, goalmouth scrambles

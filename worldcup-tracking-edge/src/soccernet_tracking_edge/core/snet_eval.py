@@ -18,16 +18,27 @@ import numpy as np
 
 def classify(
     pred: tuple[float, float] | None, truth: tuple[float, float] | None, tau: float
-) -> str:
-    """WASB's four-way outcome for one frame."""
+) -> tuple[str, ...]:
+    """WASB's outcomes for one frame. Returns one *or two* labels.
+
+    A prediction farther than ``tau`` is **both** a miss and a false alarm: the ball
+    was there and we did not find it, and we claimed it somewhere it was not. That
+    is WASB's counting and it is the only one under which recall's denominator is
+    the number of frames that actually contain a ball.
+
+    This returned a single label until 2026-08-17, and the missing FN inflated
+    recall by counting far-away fires in neither TP nor FN. Measured on the
+    converged checkpoint at tau=4: recall read 0.422 where it should read 0.351,
+    and F1 read 0.5186 where it should read 0.4611, because 235 of 1393
+    ball-bearing frames vanished from the denominator. Every ball number recorded
+    before that date is optimistic by roughly this much.
+    """
     if truth is None:
-        return "TN" if pred is None else "FP"
+        return ("TN",) if pred is None else ("FP",)
     if pred is None:
-        return "FN"
+        return ("FN",)
     d = float(np.hypot(pred[0] - truth[0], pred[1] - truth[1]))
-    # A prediction beyond tau is both a miss and a false alarm in WASB's counting:
-    # the ball was there and we did not find it, and we claimed it somewhere else.
-    return "TP" if d <= tau else "FP"
+    return ("TP",) if d <= tau else ("FN", "FP")
 
 
 def ball_metrics(records: list[dict], tau: float = 4.0) -> dict:
@@ -38,13 +49,17 @@ def ball_metrics(records: list[dict], tau: float = 4.0) -> dict:
     """
     counts = {"TP": 0, "FP": 0, "FN": 0, "TN": 0}
     for r in records:
-        counts[classify(r["pred"], r["truth"], tau)] += 1
+        for label in classify(r["pred"], r["truth"], tau):
+            counts[label] += 1
 
     tp, fp, fn, tn = counts["TP"], counts["FP"], counts["FN"], counts["TN"]
     precision = tp / (tp + fp) if tp + fp else 0.0
     recall = tp / (tp + fn) if tp + fn else 0.0
     f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
-    accuracy = (tp + tn) / max(1, sum(counts.values()))
+    # Accuracy is over *frames*, so it uses the frame count and not the sum of the
+    # counters — a far-away fire adds two counters for one frame, and dividing by
+    # their sum would quietly shrink every accuracy as the model got worse.
+    accuracy = (tp + tn) / max(1, len(records))
 
     # AP over the positive predictions, ranked by confidence.
     scored = sorted(
@@ -55,7 +70,7 @@ def ball_metrics(records: list[dict], tau: float = 4.0) -> dict:
     tps = fps = 0
     ap, prev_recall = 0.0, 0.0
     for r in scored:
-        if classify(r["pred"], r["truth"], tau) == "TP":
+        if "TP" in classify(r["pred"], r["truth"], tau):
             tps += 1
         else:
             fps += 1

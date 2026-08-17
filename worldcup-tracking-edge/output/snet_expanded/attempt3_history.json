@@ -1,0 +1,169 @@
+{
+  "args": {
+    "heads": "ball,detection,pitch",
+    "epochs": 5,
+    "batch": 8,
+    "lr": 0.001,
+    "height": 384,
+    "width": 640,
+    "stem_stride": 4,
+    "head_upsample": 4,
+    "kp_stride": 4,
+    "pitch_upsample": 1,
+    "landmark_set": "expanded",
+    "trunk_width": 32,
+    "workers": 2,
+    "limit": null,
+    "val_limit": 1500,
+    "val_stride": 29,
+    "val_split": "valid",
+    "eval_every": 2,
+    "tag": "expanded_w32"
+  },
+  "params_m": 6.324,
+  "history": [
+    {
+      "epoch": 0,
+      "seconds": 2996.1,
+      "rss_gb": 12.48,
+      "peak_vram_gb": 1.62,
+      "n_gpu": 2,
+      "samples_per_s": 14.3,
+      "train": {
+        "ball": 1.17195,
+        "detection": 2.05529,
+        "pitch": 7.89378
+      },
+      "weights": {
+        "ball": 1.2719,
+        "detection": 0.7589,
+        "pitch": 1.1919
+      }
+    },
+    {
+      "epoch": 1,
+      "seconds": 2984.5,
+      "rss_gb": 21.19,
+      "peak_vram_gb": 1.63,
+      "n_gpu": 2,
+      "samples_per_s": 14.3,
+      "train": {
+        "ball": 0.63337,
+        "detection": 1.16826,
+        "pitch": 0.03873
+      },
+      "weights": {
+        "ball": 1.7872,
+        "detection": 0.9192,
+        "pitch": 33.7974
+      },
+      "val_loss": {
+        "ball": 1.17664,
+        "detection": 1.78502,
+        "pitch": 0.03027
+      },
+      "pitch_val": {
+        "n": 13119,
+        "median_px": 10.42,
+        "p90_px": 27.031,
+        "pct_under_budget": 7.26,
+        "budget_px": 3.0,
+        "landmarks_supervised": 19237,
+        "detected_fraction": 0.682
+      },
+      "ball_val": {
+        "1": {
+          "tau_px": 1.0,
+          "TP": 87,
+          "FP": 621,
+          "FN": 695,
+          "TN": 97,
+          "precision": 0.1229,
+          "recall": 0.1113,
+          "f1": 0.1168,
+          "accuracy": 0.1227,
+          "ap": 0.0123,
+          "n_frames": 1500
+        },
+        "2": {
+          "tau_px": 2.0,
+          "TP": 227,
+          "FP": 481,
+          "FN": 695,
+          "TN": 97,
+          "precision": 0.3206,
+          "recall": 0.2462,
+          "f1": 0.2785,
+          "accuracy": 0.216,
+          "ap": 0.0746,
+          "n_frames": 1500
+        },
+        "3": {
+          "tau_px": 3.0,
+          "TP": 350,
+          "FP": 358,
+          "FN": 695,
+          "TN": 97,
+          "precision": 0.4944,
+          "recall": 0.3349,
+          "f1": 0.3993,
+          "accuracy": 0.298,
+          "ap": 0.1562,
+          "n_frames": 1500
+        },
+        "4": {
+          "tau_px": 4.0,
+          "TP": 436,
+          "FP": 272,
+          "FN": 695,
+          "TN": 97,
+          "precision": 0.6158,
+          "recall": 0.3855,
+          "f1": 0.4742,
+          "accuracy": 0.3553,
+          "ap": 0.2245,
+          "n_frames": 1500
+        },
+        "6": {
+          "tau_px": 6.0,
+          "TP": 497,
+          "FP": 211,
+          "FN": 695,
+          "TN": 97,
+          "precision": 0.702,
+          "recall": 0.4169,
+          "f1": 0.5232,
+          "accuracy": 0.396,
+          "ap": 0.2747,
+          "n_frames": 1500
+        },
+        "8": {
+          "tau_px": 8.0,
+          "TP": 515,
+          "FP": 193,
+          "FN": 695,
+          "TN": 97,
+          "precision": 0.7274,
+          "recall": 0.4256,
+          "f1": 0.537,
+          "accuracy": 0.408,
+          "ap": 0.2933,
+          "n_frames": 1500
+        },
+        "12": {
+          "tau_px": 12.0,
+          "TP": 539,
+          "FP": 169,
+          "FN": 695,
+          "TN": 97,
+          "precision": 0.7613,
+          "recall": 0.4368,
+          "f1": 0.5551,
+          "accuracy": 0.424,
+          "ap": 0.3171,
+          "n_frames": 1500
+        }
+      }
+    }
+  ]
+}

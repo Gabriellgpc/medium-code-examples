@@ -1424,6 +1424,12 @@ comparison**, and at its own 2-epoch mark the 33-point model showed 0.61 detecti
 and 9.63 px — so the expanded set is behind at the same point, not collapsed. The
 question is genuinely unresolved.
 
+> **Superseded by §9.16.** A third run of this same configuration scored 6.94%,
+> and the three runs together span 4.71 points, with the 33-landmark reference
+> sitting inside that spread. The "10.4% against 8.0%" line above compares one run
+> to one run across a noise band wider than the effect. It is not evidence either
+> way, and the wording "the head did not" overstates what one run can carry.
+
 ### The OOM, and four hypotheses measurement has killed
 
 Per-epoch RSS logging, added after the first failure, gives the shape: **13.38 GB
@@ -1447,6 +1453,98 @@ and `empty_cache()` between epochs, and `pin_memory=False`, since page-locked ho
 buffers live in exactly the process that grows. Remaining suspect, untested:
 shared-memory tensors from dataloader workers are mapped into the parent and do
 count toward its RSS.
+
+---
+
+## 9.16 Three identical runs disagree by more than the effect being measured
+
+Attempt 3 (quota reset, 16 Aug) died the same way — SIGKILL in epoch 2, at step
+3950 of 5343, RSS 29.1 GB. `gc.collect()`, `empty_cache()` and `pin_memory=False`
+changed nothing. But the per-step RSS logging did its job, and it produced two
+results: one about the leak, and a larger one about every number in §9.15.
+
+### The variance is bigger than the finding
+
+Three runs of the **same configuration** — expanded/47, w32, kp_stride 4, batch 8,
+lr 1e-3, both epochs, evaluated at epoch 1 on the same 500 valid frames:
+
+| run | landmark err | detection | landmarks/frame | no-H frames | median | **players > 5 m** |
+|---|---|---|---|---|---|---|
+| attempt 1 | 10.80 px | 0.554 | 14 | 10/500 | 1.106 m | **11.65%** |
+| attempt 2 | 10.59 px | 0.619 | 16 | 0/500 | 1.080 m | **10.41%** |
+| attempt 3 | 10.42 px | 0.682 | 15 | 0/500 | 0.975 m | **6.94%** |
+| *33 landmarks, 4 ep* | *8.61 px* | *0.83* | *7* | *4.0%* | *0.91 m* | ***8.0%*** |
+
+The headline metric spans **6.94% to 11.65%, a spread of 4.71 points**, and the
+33-landmark number this whole experiment was being compared against — 8.0% — falls
+**inside** that spread. §9.15 read a 2.4-point gap as "the head did not deliver".
+That gap is half the noise band.
+
+This is §7 of the pre-publish rules applied to my own work: one run is not an
+effect. The rule was written for claims of mechanism and it should have been
+applied here, to a claim of *comparison*, on the first run.
+
+Two things do survive, because they are not close calls. Landmarks per frame
+roughly doubles (7 → 14–16) in every run, and frames yielding no homography go to
+0/500 in two of three (2% in the third) against 4.0% for 33 landmarks. The
+geometry §9.14 predicted is real. What cannot be claimed from this data is any
+statement about metres, in either direction.
+
+**Nothing about 47-versus-33 gets written up until both arms are run to the same
+epoch count, at least twice each.** The design doc's own comparisons elsewhere are
+single-run too, and the ones with margins under ~5 points should be re-read with
+this spread in mind.
+
+### The leak is linear in training steps, and is not the loader
+
+RSS per logging step, all three epochs, one line per 500 steps:
+
+```
+e0 s0  3.7G   e0 s2500  8.0G   e0 s5000 12.0G
+e1 s0 12.6G   e1 s2650 17.1G   e1 s5150 21.0G
+e2 s0 22.6G   e2 s2300 26.4G   e2 s3950 29.1G  <- SIGKILL
+```
+
+Growth is **1.64 MB per step, monotone, from step 0 of epoch 0**. There is no jump
+in the evaluating epoch: §9.15 read the +8.7 GB as landing in the eval epoch, but
+that was an artefact of sampling RSS once per epoch. Eval epochs are simply longer
+in wall-clock; the slope through them is the same slope.
+
+A leak that is exactly linear in steps and untouched by `gc.collect()` is not
+Python objects. Two local reproductions, on a synthetic dataset emitting the real
+dataset's exact keys, shapes and dtypes (13.2 MB/sample, 105 MB/batch of 8),
+narrow it further — `scripts/rss_repro.py`:
+
+| what ran | workers | steps | RSS growth |
+|---|---|---|---|
+| drain the DataLoader, discard batches | 2 | 300 | **0.000 GB** |
+| full train step: SNetModel w32, AMP, GradScaler, AdamW | 2 | 250 | **0.000 GB** after step 50 |
+
+That kills §9.15's remaining suspect. Shared-memory tensors from the workers are
+mapped into the parent, but they are unmapped again on schedule, and the parent's
+compute retains nothing. Both stages are flat where the real run would have grown
+0.5 GB and 0.4 GB respectively.
+
+So the leak is **data-dependent or environment-dependent**, not structural: it does
+not reproduce with the same tensor shapes, the same worker count, the same model
+and the same optimiser on a local RTX 3060. What differs is the real dataset's
+`__getitem__` (JPEG decode plus Albumentations, both worker-side) and the Kaggle
+image itself (its glibc, its torch build).
+
+### What to do about it, in order
+
+1. **Stop paying for it.** The trainer already writes `last.pt` every epoch; a
+   `--resume` flag turns one 5-epoch run into three 2-epoch kernels, each well
+   under the RSS ceiling. This unblocks convergence without a diagnosis, and it is
+   the only item here that is on the critical path.
+2. **One cheap diagnostic kernel** — ~400 real steps, ~4 minutes of GPU — printing
+   parent RSS *and* summed worker RSS, `malloc_trim(0)` before and after, and the
+   torch build. Parent-only growth that `malloc_trim` reclaims is glibc arena
+   fragmentation and is fixed with `MALLOC_ARENA_MAX`; growth that survives it is a
+   real leak in the receive path and is a torch-version question.
+3. **Seeds before conclusions.** Whatever else changes, the 47-versus-33 question
+   now needs 2 seeds per arm at equal epochs, which the resume path makes
+   affordable.
 
 ---
 

@@ -249,6 +249,18 @@ def main() -> None:
     ap.add_argument("--val-split", default="valid")
     ap.add_argument("--eval-every", type=int, default=1)
     ap.add_argument("--tag", default=None)
+    ap.add_argument("--resume", default=None, metavar="PATH|auto",
+                    help="continue from a train_state.pt; 'auto' uses the one in "
+                         "this run's directory, and starts fresh if absent. "
+                         "--epochs must stay the full schedule length.")
+    ap.add_argument("--data-parallel", action="store_true",
+                    help="wrap in nn.DataParallel when several GPUs are visible. "
+                         "Off by default: it costs throughput (0.81x, section 9.9) "
+                         "and leaks 1.7 MB/step of host RAM (section 9.17).")
+    ap.add_argument("--run-epochs", type=int, default=None, metavar="N",
+                    help="execute at most N epochs in this invocation, then exit "
+                         "cleanly. Splits one long schedule across several Kaggle "
+                         "sessions; --epochs still names the full schedule.")
     args = ap.parse_args()
 
     heads = tuple(h.strip() for h in args.heads.split(",") if h.strip())
@@ -271,20 +283,31 @@ def main() -> None:
     )
     model = SNetModel(cfg).to(device)
 
-    # Kaggle's NvidiaTeslaT4 allocation is TWO T4s, and quota is billed per
-    # session rather than per device, so the second GPU is free throughput.
+    # DataParallel is OFF by default, and that default is load-bearing.
     #
-    # DataParallel rather than DDP, for a correctness reason and not only
-    # simplicity: DP replicates the *forward* and gathers outputs in the main
-    # process, so `compute_losses` still sees the whole batch. Every head here
-    # normalises by a batch-wide positive count, and DDP — computing the loss
-    # per shard — would silently change that normalisation.
+    # Kaggle's NvidiaTeslaT4 shape hands out two T4s, so this used to wrap
+    # automatically and take the second GPU as free throughput. It was not free.
+    # Section 9.9 measured it as a throughput *loss* (0.81x), and section 9.17
+    # measured it leaking host RAM at 1.686 MB per step against 0.000 for the same
+    # loop unwrapped on the same two-GPU machine — 9.0 GB per epoch, which is what
+    # killed three runs with the OOM killer while VRAM sat at 1.6 GB.
+    #
+    # Kept as an opt-in rather than deleted, because the original reason to prefer
+    # DP over DDP still holds: DP gathers outputs in the main process, so
+    # `compute_losses` sees the whole batch, and every head here normalises by a
+    # batch-wide positive count that per-shard DDP losses would silently change.
+    # If the second GPU is ever worth revisiting, that constraint is the starting
+    # point — and the leak has to be solved first.
     net = model
     n_gpu = torch.cuda.device_count() if device == "cuda" else 0
-    if n_gpu > 1:
+    if args.data_parallel and n_gpu > 1:
         net = nn.DataParallel(model)
         print(f"DataParallel across {n_gpu} GPUs "
-              f"(batch {args.batch} -> {args.batch // n_gpu} per GPU)", flush=True)
+              f"(batch {args.batch} -> {args.batch // n_gpu} per GPU) "
+              f"-- WARNING: leaks ~1.7 MB/step, see section 9.17", flush=True)
+    elif n_gpu > 1:
+        print(f"{n_gpu} GPUs visible, using 1 (DataParallel off; --data-parallel "
+              "to opt in)", flush=True)
 
     weighting = UncertaintyWeighting(heads).to(device)
     params = list(model.parameters()) + list(weighting.parameters())
@@ -304,6 +327,7 @@ def main() -> None:
     history = []
     best = -1.0
     best_loss: dict[str, float] = {}
+    start_epoch = 0
 
     def save(path: Path) -> None:
         """Always from the base model — a DataParallel wrapper prefixes every
@@ -311,7 +335,75 @@ def main() -> None:
         SNetModel."""
         torch.save({"model": model.state_dict(), "cfg": cfg.__dict__}, path)
 
-    for epoch in range(args.epochs):
+    def save_state(epoch: int) -> None:
+        """Everything needed to continue, written atomically at each epoch end.
+
+        Separate from `save()` because every evaluation script in the repo expects
+        a checkpoint to be exactly ``{"model", "cfg"}``; widening that file would
+        break them all. This one is only ever read by `--resume`.
+
+        The scheduler is included and not recomputed. OneCycleLR anneals over
+        ``epochs * len(train_loader)`` steps; rebuilding it for the *remaining*
+        epochs restarts the whole cycle, so the tail gets a second warm-up back to
+        max_lr instead of the anneal it was supposed to get. Measured on a 5-epoch
+        schedule resumed at epoch 2: the correct lr there is 9.49e-4, a rebuilt
+        scheduler starts at 4.0e-5 and climbs back to 1e-3. Loading the state
+        instead reproduces the uninterrupted schedule exactly — max difference
+        0.0 over all 500 steps. Section 9.10 already produced one invalid
+        comparison from a half-annealed checkpoint; this is the same trap by
+        another route.
+        """
+        tmp = run_dir / "train_state.pt.tmp"
+        torch.save({
+            "epoch": epoch,
+            "total_epochs": args.epochs,
+            "model": model.state_dict(),
+            "opt": opt.state_dict(),
+            "sched": sched.state_dict(),
+            "scaler": scaler.state_dict(),
+            "weighting": weighting.state_dict(),
+            "best": best,
+            "best_loss": best_loss,
+            "history": history,
+            "cfg": cfg.__dict__,
+            "torch_rng": torch.get_rng_state(),
+        }, tmp)
+        tmp.replace(run_dir / "train_state.pt")
+
+    if args.resume:
+        path = run_dir / "train_state.pt" if args.resume == "auto" else Path(args.resume)
+        if args.resume == "auto" and not path.exists():
+            print(f"--resume auto: no {path}, starting from scratch", flush=True)
+        else:
+            state = torch.load(path, map_location=device, weights_only=False)
+            if state["total_epochs"] != args.epochs:
+                raise SystemExit(
+                    f"checkpoint was scheduled over {state['total_epochs']} epochs, "
+                    f"--epochs is {args.epochs}. Pass the same total, or the "
+                    "learning-rate schedule will not line up."
+                )
+            model.load_state_dict(state["model"])
+            opt.load_state_dict(state["opt"])
+            sched.load_state_dict(state["sched"])
+            scaler.load_state_dict(state["scaler"])
+            weighting.load_state_dict(state["weighting"])
+            best, best_loss = state["best"], state["best_loss"]
+            history = state["history"]
+            start_epoch = state["epoch"] + 1
+            torch.set_rng_state(state["torch_rng"].cpu())
+            print(f"resumed {path.name} at epoch {start_epoch}/{args.epochs} "
+                  f"(lr now {sched.get_last_lr()[0]:.2e})", flush=True)
+
+    if start_epoch >= args.epochs:
+        raise SystemExit(f"nothing to do: already at epoch {start_epoch}/{args.epochs}")
+
+    stop_epoch = args.epochs
+    if args.run_epochs is not None:
+        stop_epoch = min(args.epochs, start_epoch + args.run_epochs)
+        print(f"running epochs {start_epoch}..{stop_epoch - 1} of {args.epochs}",
+              flush=True)
+
+    for epoch in range(start_epoch, stop_epoch):
         t0, running = time.time(), {}
         for step, batch in enumerate(train_loader):
             batch = {k: v.to(device, non_blocking=True) for k, v in batch.items()}
@@ -388,6 +480,11 @@ def main() -> None:
         (run_dir / "history.json").write_text(json.dumps(
             {"args": vars(args), "params_m": round(model.n_params / 1e6, 3),
              "history": history}, indent=2))
+        # Written every epoch, not only at the end: three runs have been SIGKILLed
+        # by the OOM killer mid-epoch, and without this the hours before the kill
+        # are lost outright.
+        save(run_dir / "last.pt")
+        save_state(epoch)
         print(f"epoch {epoch} done in {entry['seconds']}s", flush=True)
 
     save(run_dir / "last.pt")

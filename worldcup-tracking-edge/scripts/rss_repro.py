@@ -102,7 +102,8 @@ def main() -> None:
     if args.stage == "train":
         # The real thing: same model, same losses, same AMP path as train_snet.py.
         from soccernet_tracking_edge.core.snet_loss import (
-            UncertaintyWeighting, compute_losses,
+            UncertaintyWeighting,
+            compute_losses,
         )
         from soccernet_tracking_edge.core.snet_model import SNetConfig, SNetModel
         cfg = SNetConfig(width=args.trunk_width, heads=heads,

@@ -1548,6 +1548,85 @@ image itself (its glibc, its torch build).
 
 ---
 
+## 9.17 The leak is `nn.DataParallel`, and it was never buying anything
+
+Two diagnostic kernels, about twelve minutes of GPU between them, on real data in
+the real image. Artifacts: `output/rss_diag/`.
+
+### Round 1 came back negative, which is what found it
+
+400 real training steps, default allocator against `MALLOC_ARENA_MAX=2`:
+
+| pass | parent RSS, step 25 → 400 | reclaimed by `malloc_trim` |
+|---|---|---|
+| default | 2.611 → 2.611 GB | 0.000 GB |
+| `MALLOC_ARENA_MAX=2` | 2.599 → 2.599 GB | 0.000 GB |
+
+Flat to the millibyte. Arena fragmentation is not the cause and neither is the
+allocator configuration.
+
+*A measurement error worth recording, because it nearly became a finding:* the
+round-1 summary reported 0.163 MB/step and that number is meaningless. It was the
+step 0 → 25 warm-up divided across 400 steps. A first-to-last slope cannot
+distinguish warm-up from leak, so `diag_rss.py` now measures from step 50 and
+reports which step it measured from.
+
+A flat result on the real loop, real data and real image meant a variable was
+missing between the diagnostic and training. The logs had it:
+
+```
+train attempt 3:  "DataParallel across 2 GPUs (batch 8 -> 4 per GPU)"
+diagnostic:       (nothing)
+```
+
+Kaggle's `NvidiaTeslaT4` shape hands out **two** T4s, and `train_snet.py` wrapped
+the model whenever it saw more than one. The diagnostic ran unwrapped. So did both
+local reproductions, on a single-GPU laptop — which is why §9.16's synthetic test
+came back clean and cleared a loader that was never guilty.
+
+### Round 2: one variable, control in the same session
+
+Same machine, same two GPUs, same data, same 400 steps. Only the wrapper differs:
+
+| pass | parent RSS, step 50 → 400 | slope | `malloc_trim` reclaims |
+|---|---|---|---|
+| `A_plain` | 2.611 → 2.611 GB | **0.000 MB/step** | 0.000 GB |
+| `B_dataparallel` | 3.182 → 3.772 GB | **1.686 MB/step** | 0.002 GB |
+
+B's trace is a straight line across all fifteen samples. The number also matches
+the failure it explains: **1.686 MB/step against the 1.64 MB/step measured in the
+five-hour run** (2.8% apart), extrapolating to **9.01 GB per 5343-step epoch
+against the 8.73 GB actually observed** (13.38 → 22.11 GB across epoch 1).
+
+`malloc_trim` reclaiming 0.002 GB says this is a real leak, not memory the
+allocator is merely holding.
+
+### The fix costs nothing and pays twice
+
+`--data-parallel` is now opt-in and off by default. §9.9 had already measured
+DataParallel as a throughput **loss** (0.81x), and the second GPU was kept anyway
+on the reasoning that it was free. It was not free: it was leaking 9 GB an epoch
+into a ~30 GB ceiling, which is what killed three runs while VRAM sat at 1.6 GB.
+Turning it off removes the OOM *and* returns the throughput.
+
+Two consequences worth stating plainly:
+
+- **BatchNorm semantics change, for the better.** Batch 8 under DP was 4 per GPU
+  with per-device statistics; unwrapped it is 8 samples in one pass. Every previous
+  run's numbers were produced under the split. This is a better configuration, not
+  a comparable one, and any cross-run comparison spanning the change should say so.
+- **`--resume` is no longer on the critical path.** It stays, because a run that
+  dies in hour five should not lose hours one through four, but the six-epoch run
+  should now hold flat near 2.6 GB and simply finish.
+
+### What this does not settle
+
+Nothing about landmarks. §9.16's retraction stands: 47-versus-33 is still open, and
+three identical runs still spanned 4.71 points on the headline metric. What changed
+is only that the experiment can now be run to completion.
+
+---
+
 ## 10. What is left
 
 1. **Step 3, the control**: this detection head against RF-DETR on the same split

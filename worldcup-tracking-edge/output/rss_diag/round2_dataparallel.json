@@ -1,0 +1,297 @@
+{
+  "steps": 400,
+  "passes": [
+    {
+      "label": "A_plain",
+      "malloc_arena_max": null,
+      "data_parallel": false,
+      "n_gpu": 2,
+      "torch": "2.10.0+cu128",
+      "steps": 400,
+      "slope_measured_from_step": 50,
+      "parent_growth_gb": 0.0,
+      "parent_growth_mb_per_step": 0.0,
+      "children_growth_gb": 0.015,
+      "children_growth_mb_per_step": 0.043,
+      "trim_reclaimed_at_end_gb": 0.0,
+      "samples": [
+        {
+          "step": 0,
+          "parent_gb": 2.545,
+          "parent_after_trim_gb": 2.545,
+          "children_gb": 2.426,
+          "n_children": 2
+        },
+        {
+          "step": 25,
+          "parent_gb": 2.611,
+          "parent_after_trim_gb": 2.611,
+          "children_gb": 2.503,
+          "n_children": 2
+        },
+        {
+          "step": 50,
+          "parent_gb": 2.611,
+          "parent_after_trim_gb": 2.611,
+          "children_gb": 2.622,
+          "n_children": 2
+        },
+        {
+          "step": 75,
+          "parent_gb": 2.611,
+          "parent_after_trim_gb": 2.611,
+          "children_gb": 2.525,
+          "n_children": 2
+        },
+        {
+          "step": 100,
+          "parent_gb": 2.611,
+          "parent_after_trim_gb": 2.611,
+          "children_gb": 2.606,
+          "n_children": 2
+        },
+        {
+          "step": 125,
+          "parent_gb": 2.611,
+          "parent_after_trim_gb": 2.611,
+          "children_gb": 2.544,
+          "n_children": 2
+        },
+        {
+          "step": 150,
+          "parent_gb": 2.611,
+          "parent_after_trim_gb": 2.611,
+          "children_gb": 2.641,
+          "n_children": 2
+        },
+        {
+          "step": 175,
+          "parent_gb": 2.611,
+          "parent_after_trim_gb": 2.611,
+          "children_gb": 2.596,
+          "n_children": 2
+        },
+        {
+          "step": 200,
+          "parent_gb": 2.611,
+          "parent_after_trim_gb": 2.611,
+          "children_gb": 2.603,
+          "n_children": 2
+        },
+        {
+          "step": 225,
+          "parent_gb": 2.611,
+          "parent_after_trim_gb": 2.611,
+          "children_gb": 2.572,
+          "n_children": 2
+        },
+        {
+          "step": 250,
+          "parent_gb": 2.611,
+          "parent_after_trim_gb": 2.611,
+          "children_gb": 2.616,
+          "n_children": 2
+        },
+        {
+          "step": 275,
+          "parent_gb": 2.611,
+          "parent_after_trim_gb": 2.611,
+          "children_gb": 2.614,
+          "n_children": 2
+        },
+        {
+          "step": 300,
+          "parent_gb": 2.611,
+          "parent_after_trim_gb": 2.611,
+          "children_gb": 2.664,
+          "n_children": 2
+        },
+        {
+          "step": 325,
+          "parent_gb": 2.611,
+          "parent_after_trim_gb": 2.611,
+          "children_gb": 2.506,
+          "n_children": 2
+        },
+        {
+          "step": 350,
+          "parent_gb": 2.611,
+          "parent_after_trim_gb": 2.611,
+          "children_gb": 2.643,
+          "n_children": 2
+        },
+        {
+          "step": 375,
+          "parent_gb": 2.611,
+          "parent_after_trim_gb": 2.611,
+          "children_gb": 2.665,
+          "n_children": 2
+        },
+        {
+          "step": 400,
+          "parent_gb": 2.611,
+          "parent_after_trim_gb": 2.611,
+          "children_gb": 2.637,
+          "n_children": 2
+        }
+      ]
+    },
+    {
+      "label": "B_dataparallel",
+      "malloc_arena_max": null,
+      "data_parallel": true,
+      "n_gpu": 2,
+      "torch": "2.10.0+cu128",
+      "steps": 400,
+      "slope_measured_from_step": 50,
+      "parent_growth_gb": 0.59,
+      "parent_growth_mb_per_step": 1.686,
+      "children_growth_gb": 0.008,
+      "children_growth_mb_per_step": 0.023,
+      "trim_reclaimed_at_end_gb": 0.002,
+      "samples": [
+        {
+          "step": 0,
+          "parent_gb": 3.028,
+          "parent_after_trim_gb": 3.027,
+          "children_gb": 2.486,
+          "n_children": 2
+        },
+        {
+          "step": 25,
+          "parent_gb": 3.14,
+          "parent_after_trim_gb": 3.138,
+          "children_gb": 2.529,
+          "n_children": 2
+        },
+        {
+          "step": 50,
+          "parent_gb": 3.182,
+          "parent_after_trim_gb": 3.18,
+          "children_gb": 2.464,
+          "n_children": 2
+        },
+        {
+          "step": 75,
+          "parent_gb": 3.224,
+          "parent_after_trim_gb": 3.222,
+          "children_gb": 2.564,
+          "n_children": 2
+        },
+        {
+          "step": 100,
+          "parent_gb": 3.267,
+          "parent_after_trim_gb": 3.265,
+          "children_gb": 2.537,
+          "n_children": 2
+        },
+        {
+          "step": 125,
+          "parent_gb": 3.309,
+          "parent_after_trim_gb": 3.307,
+          "children_gb": 2.478,
+          "n_children": 2
+        },
+        {
+          "step": 150,
+          "parent_gb": 3.351,
+          "parent_after_trim_gb": 3.349,
+          "children_gb": 2.554,
+          "n_children": 2
+        },
+        {
+          "step": 175,
+          "parent_gb": 3.393,
+          "parent_after_trim_gb": 3.391,
+          "children_gb": 2.463,
+          "n_children": 2
+        },
+        {
+          "step": 200,
+          "parent_gb": 3.435,
+          "parent_after_trim_gb": 3.433,
+          "children_gb": 2.466,
+          "n_children": 2
+        },
+        {
+          "step": 225,
+          "parent_gb": 3.477,
+          "parent_after_trim_gb": 3.475,
+          "children_gb": 2.491,
+          "n_children": 2
+        },
+        {
+          "step": 250,
+          "parent_gb": 3.519,
+          "parent_after_trim_gb": 3.517,
+          "children_gb": 2.472,
+          "n_children": 2
+        },
+        {
+          "step": 275,
+          "parent_gb": 3.562,
+          "parent_after_trim_gb": 3.559,
+          "children_gb": 2.489,
+          "n_children": 2
+        },
+        {
+          "step": 300,
+          "parent_gb": 3.604,
+          "parent_after_trim_gb": 3.602,
+          "children_gb": 2.46,
+          "n_children": 2
+        },
+        {
+          "step": 325,
+          "parent_gb": 3.646,
+          "parent_after_trim_gb": 3.644,
+          "children_gb": 2.526,
+          "n_children": 2
+        },
+        {
+          "step": 350,
+          "parent_gb": 3.688,
+          "parent_after_trim_gb": 3.686,
+          "children_gb": 2.539,
+          "n_children": 2
+        },
+        {
+          "step": 375,
+          "parent_gb": 3.73,
+          "parent_after_trim_gb": 3.728,
+          "children_gb": 2.514,
+          "n_children": 2
+        },
+        {
+          "step": 400,
+          "parent_gb": 3.772,
+          "parent_after_trim_gb": 3.77,
+          "children_gb": 2.472,
+          "n_children": 2
+        }
+      ]
+    }
+  ],
+  "summary": [
+    {
+      "label": "A_plain",
+      "data_parallel": false,
+      "n_gpu": 2,
+      "torch": "2.10.0+cu128",
+      "slope_measured_from_step": 50,
+      "parent_growth_mb_per_step": 0.0,
+      "children_growth_mb_per_step": 0.043,
+      "trim_reclaimed_at_end_gb": 0.0
+    },
+    {
+      "label": "B_dataparallel",
+      "data_parallel": true,
+      "n_gpu": 2,
+      "torch": "2.10.0+cu128",
+      "slope_measured_from_step": 50,
+      "parent_growth_mb_per_step": 1.686,
+      "children_growth_mb_per_step": 0.023,
+      "trim_reclaimed_at_end_gb": 0.002
+    }
+  ]
+}

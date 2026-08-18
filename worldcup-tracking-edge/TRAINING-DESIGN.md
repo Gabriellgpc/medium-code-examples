@@ -1882,6 +1882,82 @@ measured against that, not against 0.519.
 
 ---
 
+## 9.21 Stride-2 features did not help, and the reason rules out a whole family of fixes
+
+§9.20 left the ball head needing *something*, and the size arithmetic named the
+obvious candidate. Measured on the annotations: a ball is 13 native px, 4.3 px at
+the 640-wide input, **1.08 cells** at the trunk's stride 4. A player is 3.7 cells.
+The trunk resolves a player and merely registers that something happened in one
+cell for the ball; the head then has to invent where inside that cell it was.
+
+`BallHead` fuses stride-2 stem features — the highest resolution at which any
+learned feature exists in this network — into the ball head before the final
+upsample, leaving the trunk untouched. It is also **1.18 ms faster** (33.27 →
+32.09 ms on the iGPU, three interleaved rounds, spread 0.51), because the refine
+convolution drops from 384x640 to 192x320.
+
+### It bought nothing
+
+Six epochs, expanded landmarks, everything else as §9.18. All numbers under the
+§9.20-corrected metric:
+
+| | baseline | + stem skip |
+|---|---|---|
+| F1 @ τ=2 | 0.2650 | 0.2732 |
+| **F1 @ τ=4** | **0.4611** | **0.4650** |
+| F1 @ τ=8 (thr 0.50) | 0.5545 | 0.5491 |
+| recall @ τ=4 | 0.351 | 0.353 |
+| precision @ τ=4 | 0.672 | 0.680 |
+
++0.4 points at τ=4, −0.5 at τ=8. That is a wash, and smaller than the seed-to-seed
+spread §9.18 measured on a comparable metric. **The hypothesis is not supported.**
+
+### Why the null result is worth more than the change would have been
+
+The failure is specific enough to eliminate a family of fixes. The head fires on
+**48% of frames in both arms** — 723 against 728 — and stays silent on **48% of
+ball-bearing frames in both**, 675 against 669. Giving it four times the spatial
+evidence did not make it fire once more often.
+
+So the bottleneck is not localisation precision. It is **detection**: knowing a
+ball is present at all. When the head does fire it is right 68% of the time, and
+it should be firing on 93% of frames rather than 48%.
+
+That rules out, without further runs, everything aimed at *where*: higher input
+resolution, finer output stride, a deeper decoder, sub-pixel refinement. All of
+them sharpen a peak that is not being emitted.
+
+What it points at instead is *whether*, which is a loss and calibration question.
+The candidates, in the order their cost argues for:
+
+1. **The positive/negative imbalance.** One ball in ~245k pixels, with the head's
+   output bias initialised at −4.6 and `BALL_POS_FLOOR = 21.0` normalising the
+   loss. A head that under-fires by this much is behaving like one whose loss is
+   still dominated by the negatives.
+2. **The visibility flag, unused.** `build_ball_track` exports it and the training
+   target ignores it. TOTNet's visibility-weighted loss (§4, ref [13]) is the graft
+   this evidence actually argues for, and it was scouted before any of this ran.
+3. **Motion.** The 3-frame stack is concatenated on channels at the input and never
+   given an explicit differencing path, so the strongest cue for a small fast object
+   has to be rediscovered by the stem.
+
+### What is kept anyway
+
+`ball_stem_skip` stays in the code, defaulted **off**. It costs nothing in latency
+and nothing in accuracy, so there is no case for it now — but if a loss change ever
+makes the head fire, localisation becomes the binding constraint and this is the
+lever that was already measured.
+
+One incidental number, flagged rather than claimed: this run's pitch metrics came
+out best of the three expanded runs (1.90% beyond 5 m against 2.40% and 2.12%,
+landmark error 8.91 px against 9.13 and 9.10). The ball head cannot affect the
+pitch head, but adding `BallHead` changes the parameter count and therefore the
+whole initialisation stream, so this run is effectively a third seed. Read it as
+seed noise, and note the three-run spread is now 0.50 points — consistent with the
+0.28–0.60 §9.18 measured.
+
+---
+
 ## 10. What is left
 
 1. **Step 3, the control**: this detection head against RF-DETR on the same split
@@ -1920,9 +1996,12 @@ measured against that, not against 0.519.
 5. **The ball head is now the weakest part of the model.** **F1 0.461 at τ=4 px**
    (recall 0.351, precision 0.672 — see §9.20; the 0.51 this line used to quote came
    from the counting bug fixed there), and
-   a 750-frame render of an unseen sequence found it in 36% of frames. §9.20 also
-   ruled out a free win from the decode threshold: 0.50 was already optimal, and
-   lowering it produces noise rather than shy detections. Candidate
+   a 750-frame render of an unseen sequence found it in 36% of frames. Two things
+   are already ruled out: the decode threshold (§9.20 — 0.50 is optimal, lowering it
+   yields noise) and spatial resolution (§9.21 — stride-2 features changed nothing,
+   because the head under-*fires* rather than mis-locates). The live hypothesis is
+   the loss: positive/negative imbalance, the unused visibility flag, and the
+   absent explicit motion path, in that order. Candidate
    grafts were scouted in §4: TOTNet's visibility-weighted loss (`build_ball_track`
    already exports the flag) and BlurBall's blur-centre relabelling.
 6. **Athlete class confusion in crowds.** Watching the render, goalmouth scrambles

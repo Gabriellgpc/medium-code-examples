@@ -1,0 +1,29 @@
+{
+  "train": {
+    "sequences": [
+      "SNMOT-116",
+      "SNMOT-117"
+    ],
+    "images": 1500,
+    "boxes": 20631,
+    "per_class": {
+      "ball": 1504,
+      "player": 16895,
+      "referee": 1418,
+      "goalkeeper": 814
+    }
+  },
+  "val": {
+    "sequences": [
+      "SNMOT-118"
+    ],
+    "images": 750,
+    "boxes": 10919,
+    "per_class": {
+      "ball": 790,
+      "player": 8739,
+      "referee": 749,
+      "goalkeeper": 641
+    }
+  }
+}

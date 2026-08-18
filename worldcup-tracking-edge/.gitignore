@@ -1,0 +1,22 @@
+__pycache__
+.venv
+*.egg-info
+.ruff_cache
+# uv.lock IS committed for reproducible installs (gold-pattern default).
+data
+models
+*.pt
+runs
+output/*.png
+output/*.csv
+output/*.md
+output/*.mp4
+output/*.gif
+output/*.log
+output/cache
+# Rendered demo sequences. The SoccerNet NDA permits publishing metrics and
+# attributed frames, never raw video -- and the patterns above only match the top
+# level, so output/demo/foo.mp4 would walk straight past them.
+output/demo/
+.env
+*error*

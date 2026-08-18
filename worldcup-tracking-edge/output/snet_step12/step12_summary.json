@@ -1,0 +1,65 @@
+{
+  "note": "equal-budget solo vs joint; 3 epochs on the full train split, not trained to convergence",
+  "epochs": 3,
+  "batch": 8,
+  "val_stride": 29,
+  "runs": {
+    "solo-ball": {
+      "seconds": 5115.2
+    },
+    "solo-detection": {
+      "seconds": 4932.0
+    },
+    "joint-ball-detection": {
+      "seconds": 5394.9
+    },
+    "joint_ball_det": {
+      "params_m": 2.187,
+      "epoch_seconds": [
+        1697.6,
+        1678.1,
+        1667.6
+      ],
+      "final_val_loss": {
+        "ball": 1.60061,
+        "detection": 1.17936
+      },
+      "ball_f1_at_4px_per_epoch": [
+        0.3952,
+        0.4289,
+        0.4668
+      ],
+      "best_ball_f1_at_4px": 0.4668,
+      "best_ball_recall": 0.3695
+    },
+    "solo_ball": {
+      "params_m": 1.954,
+      "epoch_seconds": [
+        1621.4,
+        1576.8,
+        1563.5
+      ],
+      "final_val_loss": {
+        "ball": 2.00308
+      },
+      "ball_f1_at_4px_per_epoch": [
+        0.3491,
+        0.3766,
+        0.4415
+      ],
+      "best_ball_f1_at_4px": 0.4415,
+      "best_ball_recall": 0.3325
+    },
+    "solo_detection": {
+      "params_m": 2.1,
+      "epoch_seconds": [
+        1572.1,
+        1587.9,
+        1591.6
+      ],
+      "final_val_loss": {
+        "detection": 1.18312
+      }
+    }
+  }
+}

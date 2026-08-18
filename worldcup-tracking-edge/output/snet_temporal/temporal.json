@@ -1,0 +1,62 @@
+{
+  "checkpoint": "/kaggle/input/notebooks/condados/snet-capacity-pitchstride/snet/cap_w32/best.pt",
+  "sequences": [
+    "SNGS-021",
+    "SNGS-022",
+    "SNGS-023",
+    "SNGS-024"
+  ],
+  "frames": 3000,
+  "raw": {
+    "label": "per-frame homography",
+    "n": 39543,
+    "median_m": 0.965,
+    "p90_m": 4.359,
+    "pct_over_5m": 8.39,
+    "pct_under_1m": 51.15,
+    "frames_without_homography_pct": 13.5,
+    "unusable_pct": 20.7
+  },
+  "smoothed": {
+    "3": {
+      "label": "median filter, window 3",
+      "n": 39761,
+      "median_m": 0.965,
+      "p90_m": 4.31,
+      "pct_over_5m": 8.3,
+      "pct_under_1m": 51.24,
+      "frames_without_homography_pct": 0.0,
+      "unusable_pct": 8.3
+    },
+    "5": {
+      "label": "median filter, window 5",
+      "n": 39894,
+      "median_m": 0.97,
+      "p90_m": 4.264,
+      "pct_over_5m": 8.16,
+      "pct_under_1m": 50.98,
+      "frames_without_homography_pct": 0.0,
+      "unusable_pct": 8.2
+    },
+    "9": {
+      "label": "median filter, window 9",
+      "n": 39998,
+      "median_m": 0.965,
+      "p90_m": 4.187,
+      "pct_over_5m": 8.0,
+      "pct_under_1m": 51.19,
+      "frames_without_homography_pct": 0.0,
+      "unusable_pct": 8.0
+    },
+    "15": {
+      "label": "median filter, window 15",
+      "n": 40135,
+      "median_m": 0.981,
+      "p90_m": 4.111,
+      "pct_over_5m": 7.76,
+      "pct_under_1m": 50.71,
+      "frames_without_homography_pct": 0.0,
+      "unusable_pct": 7.8
+    }
+  }
+}

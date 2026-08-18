@@ -1,0 +1,15 @@
+{
+  "id": "condados/snet-gsr-measurements",
+  "title": "snet gsr measurements",
+  "code_file": "run.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": false,
+  "enable_tpu": false,
+  "enable_internet": true,
+  "dataset_sources": ["condados/soccernet-tracking-edge-src"],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}

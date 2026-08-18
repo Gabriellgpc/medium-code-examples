@@ -1,0 +1,66 @@
+{
+  "split": "valid",
+  "frames": 500,
+  "sequences": 58,
+  "categories": [
+    1,
+    2,
+    3
+  ],
+  "note": "accuracy only; RF-DETR-Large runs at 1280px and 1.3 FPS on the target iGPU against SNet's 384x640 at 32.7 FPS",
+  "results": {
+    "snet_buggy_target": {
+      "mAP": 0.112,
+      "mAP_50": 0.3136,
+      "mAP_75": 0.0493,
+      "mAP_small": 0.035,
+      "mAP_medium": 0.1113,
+      "mAP_large": 0.1861,
+      "AR_1": 0.1029,
+      "AR_10": 0.2433,
+      "AR_100": 0.2793,
+      "AR_small": 0.0655,
+      "AR_medium": 0.285,
+      "AR_large": 0.3458,
+      "n_detections": 19753,
+      "per_class_AP": {
+        "player": 0.2098,
+        "referee": 0.0558,
+        "goalkeeper": 0.0705
+      }
+    },
+    "snet_fixed_target": {
+      "mAP": 0.2574,
+      "mAP_50": 0.5463,
+      "mAP_75": 0.2031,
+      "mAP_small": 0.1198,
+      "mAP_medium": 0.2572,
+      "mAP_large": 0.3791,
+      "AR_1": 0.2038,
+      "AR_10": 0.3553,
+      "AR_100": 0.4057,
+      "AR_small": 0.1598,
+      "AR_medium": 0.4087,
+      "AR_large": 0.5133,
+      "n_detections": 49065,
+      "per_class_AP": {
+        "player": 0.34,
+        "referee": 0.1731,
+        "goalkeeper": 0.2589
+      }
+    },
+    "rfdetr_soccernet": {
+      "error": "RemoteEntryNotFoundError: 404 Client Error. (Request ID: Root=1-6a7a065f-4faa72750abb301b63e55949;77ac3b77-984c-4394-a16b-bdebdb03f4be)\n\nEntry Not Found for url: https://huggingface.co/julianzu9612/RFDETR-Soccernet/resolve/main/checkpoint_best_total.pth."
+    }
+  },
+  "retrain_seconds": 6185.4,
+  "retrain_ball_f1_at_4px": [
+    0.3028,
+    0.4302,
+    0.4686
+  ],
+  "retrain_val_loss": {
+    "ball": 1.76431,
+    "detection": 2.20455
+  }
+}

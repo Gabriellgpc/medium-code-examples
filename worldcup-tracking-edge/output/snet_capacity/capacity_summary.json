@@ -1,0 +1,124 @@
+{
+  "w18": {
+    "seconds": 7840.6,
+    "map": {
+      "mAP": 0.274,
+      "mAP_50": 0.6029,
+      "mAP_75": 0.2005,
+      "mAP_small": 0.1534,
+      "mAP_medium": 0.2747,
+      "mAP_large": 0.3531,
+      "AR_1": 0.2074,
+      "AR_10": 0.3632,
+      "AR_100": 0.4155,
+      "AR_small": 0.1891,
+      "AR_medium": 0.415,
+      "AR_large": 0.5436,
+      "n_detections": 49814,
+      "per_class_AP": {
+        "player": 0.3497,
+        "referee": 0.1644,
+        "goalkeeper": 0.308
+      }
+    },
+    "params_m": 2.266,
+    "ball_f1": [
+      0.4606,
+      0.4913
+    ],
+    "pitch": [
+      {
+        "n": 8036,
+        "median_px": 9.597,
+        "p90_px": 26.087,
+        "pct_under_budget": 8.5,
+        "budget_px": 3.0,
+        "landmarks_supervised": 12087,
+        "detected_fraction": 0.6648
+      },
+      {
+        "n": 9799,
+        "median_px": 8.781,
+        "p90_px": 24.486,
+        "pct_under_budget": 11.48,
+        "budget_px": 3.0,
+        "landmarks_supervised": 12087,
+        "detected_fraction": 0.8107
+      }
+    ],
+    "epoch_seconds": [
+      1911.1,
+      1869.5,
+      1857.0,
+      1847.6
+    ],
+    "kendall": [
+      {
+        "ball": 2.5556,
+        "detection": 1.0338,
+        "pitch": 137.0591
+      }
+    ]
+  },
+  "w32": {
+    "seconds": 7823.9,
+    "map": {
+      "mAP": 0.2865,
+      "mAP_50": 0.6103,
+      "mAP_75": 0.228,
+      "mAP_small": 0.1789,
+      "mAP_medium": 0.2851,
+      "mAP_large": 0.3935,
+      "AR_1": 0.222,
+      "AR_10": 0.3856,
+      "AR_100": 0.4448,
+      "AR_small": 0.2155,
+      "AR_medium": 0.4446,
+      "AR_large": 0.5834,
+      "n_detections": 49269,
+      "per_class_AP": {
+        "player": 0.3711,
+        "referee": 0.1544,
+        "goalkeeper": 0.334
+      }
+    },
+    "params_m": 6.324,
+    "ball_f1": [
+      0.4339,
+      0.5104
+    ],
+    "pitch": [
+      {
+        "n": 6882,
+        "median_px": 8.958,
+        "p90_px": 25.055,
+        "pct_under_budget": 9.29,
+        "budget_px": 3.0,
+        "landmarks_supervised": 12087,
+        "detected_fraction": 0.5694
+      },
+      {
+        "n": 9956,
+        "median_px": 8.73,
+        "p90_px": 24.392,
+        "pct_under_budget": 11.33,
+        "budget_px": 3.0,
+        "landmarks_supervised": 12087,
+        "detected_fraction": 0.8237
+      }
+    ],
+    "epoch_seconds": [
+      1884.4,
+      1893.7,
+      1859.7,
+      1850.0
+    ],
+    "kendall": [
+      {
+        "ball": 2.7932,
+        "detection": 1.0978,
+        "pitch": 148.9065
+      }
+    ]
+  }
+}

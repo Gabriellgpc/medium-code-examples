@@ -1,0 +1,1476 @@
+{
+  "note": "per-logging-step RSS, Kaggle attempt 3, SIGKILL at e2 s3950",
+  "steps_per_epoch": 5343,
+  "samples": [
+    {
+      "epoch": 0,
+      "step": 0,
+      "rss_gb": 3.7
+    },
+    {
+      "epoch": 0,
+      "step": 50,
+      "rss_gb": 3.8
+    },
+    {
+      "epoch": 0,
+      "step": 100,
+      "rss_gb": 3.9
+    },
+    {
+      "epoch": 0,
+      "step": 150,
+      "rss_gb": 4.0
+    },
+    {
+      "epoch": 0,
+      "step": 200,
+      "rss_gb": 4.1
+    },
+    {
+      "epoch": 0,
+      "step": 250,
+      "rss_gb": 4.2
+    },
+    {
+      "epoch": 0,
+      "step": 300,
+      "rss_gb": 4.3
+    },
+    {
+      "epoch": 0,
+      "step": 350,
+      "rss_gb": 4.3
+    },
+    {
+      "epoch": 0,
+      "step": 400,
+      "rss_gb": 4.4
+    },
+    {
+      "epoch": 0,
+      "step": 450,
+      "rss_gb": 4.5
+    },
+    {
+      "epoch": 0,
+      "step": 500,
+      "rss_gb": 4.6
+    },
+    {
+      "epoch": 0,
+      "step": 550,
+      "rss_gb": 4.7
+    },
+    {
+      "epoch": 0,
+      "step": 600,
+      "rss_gb": 4.8
+    },
+    {
+      "epoch": 0,
+      "step": 650,
+      "rss_gb": 4.9
+    },
+    {
+      "epoch": 0,
+      "step": 700,
+      "rss_gb": 4.9
+    },
+    {
+      "epoch": 0,
+      "step": 750,
+      "rss_gb": 5.0
+    },
+    {
+      "epoch": 0,
+      "step": 800,
+      "rss_gb": 5.1
+    },
+    {
+      "epoch": 0,
+      "step": 850,
+      "rss_gb": 5.2
+    },
+    {
+      "epoch": 0,
+      "step": 900,
+      "rss_gb": 5.3
+    },
+    {
+      "epoch": 0,
+      "step": 950,
+      "rss_gb": 5.4
+    },
+    {
+      "epoch": 0,
+      "step": 1000,
+      "rss_gb": 5.4
+    },
+    {
+      "epoch": 0,
+      "step": 1050,
+      "rss_gb": 5.5
+    },
+    {
+      "epoch": 0,
+      "step": 1100,
+      "rss_gb": 5.6
+    },
+    {
+      "epoch": 0,
+      "step": 1150,
+      "rss_gb": 5.7
+    },
+    {
+      "epoch": 0,
+      "step": 1200,
+      "rss_gb": 5.8
+    },
+    {
+      "epoch": 0,
+      "step": 1250,
+      "rss_gb": 5.9
+    },
+    {
+      "epoch": 0,
+      "step": 1300,
+      "rss_gb": 5.9
+    },
+    {
+      "epoch": 0,
+      "step": 1350,
+      "rss_gb": 6.0
+    },
+    {
+      "epoch": 0,
+      "step": 1400,
+      "rss_gb": 6.1
+    },
+    {
+      "epoch": 0,
+      "step": 1450,
+      "rss_gb": 6.2
+    },
+    {
+      "epoch": 0,
+      "step": 1500,
+      "rss_gb": 6.3
+    },
+    {
+      "epoch": 0,
+      "step": 1550,
+      "rss_gb": 6.4
+    },
+    {
+      "epoch": 0,
+      "step": 1600,
+      "rss_gb": 6.5
+    },
+    {
+      "epoch": 0,
+      "step": 1650,
+      "rss_gb": 6.5
+    },
+    {
+      "epoch": 0,
+      "step": 1700,
+      "rss_gb": 6.6
+    },
+    {
+      "epoch": 0,
+      "step": 1750,
+      "rss_gb": 6.7
+    },
+    {
+      "epoch": 0,
+      "step": 1800,
+      "rss_gb": 6.8
+    },
+    {
+      "epoch": 0,
+      "step": 1850,
+      "rss_gb": 6.9
+    },
+    {
+      "epoch": 0,
+      "step": 1900,
+      "rss_gb": 7.0
+    },
+    {
+      "epoch": 0,
+      "step": 1950,
+      "rss_gb": 7.0
+    },
+    {
+      "epoch": 0,
+      "step": 2000,
+      "rss_gb": 7.1
+    },
+    {
+      "epoch": 0,
+      "step": 2050,
+      "rss_gb": 7.2
+    },
+    {
+      "epoch": 0,
+      "step": 2100,
+      "rss_gb": 7.3
+    },
+    {
+      "epoch": 0,
+      "step": 2150,
+      "rss_gb": 7.4
+    },
+    {
+      "epoch": 0,
+      "step": 2200,
+      "rss_gb": 7.5
+    },
+    {
+      "epoch": 0,
+      "step": 2250,
+      "rss_gb": 7.5
+    },
+    {
+      "epoch": 0,
+      "step": 2300,
+      "rss_gb": 7.6
+    },
+    {
+      "epoch": 0,
+      "step": 2350,
+      "rss_gb": 7.7
+    },
+    {
+      "epoch": 0,
+      "step": 2400,
+      "rss_gb": 7.8
+    },
+    {
+      "epoch": 0,
+      "step": 2450,
+      "rss_gb": 7.9
+    },
+    {
+      "epoch": 0,
+      "step": 2500,
+      "rss_gb": 8.0
+    },
+    {
+      "epoch": 0,
+      "step": 2550,
+      "rss_gb": 8.1
+    },
+    {
+      "epoch": 0,
+      "step": 2600,
+      "rss_gb": 8.1
+    },
+    {
+      "epoch": 0,
+      "step": 2650,
+      "rss_gb": 8.2
+    },
+    {
+      "epoch": 0,
+      "step": 2700,
+      "rss_gb": 8.3
+    },
+    {
+      "epoch": 0,
+      "step": 2750,
+      "rss_gb": 8.4
+    },
+    {
+      "epoch": 0,
+      "step": 2800,
+      "rss_gb": 8.5
+    },
+    {
+      "epoch": 0,
+      "step": 2850,
+      "rss_gb": 8.6
+    },
+    {
+      "epoch": 0,
+      "step": 2900,
+      "rss_gb": 8.6
+    },
+    {
+      "epoch": 0,
+      "step": 2950,
+      "rss_gb": 8.7
+    },
+    {
+      "epoch": 0,
+      "step": 3000,
+      "rss_gb": 8.8
+    },
+    {
+      "epoch": 0,
+      "step": 3050,
+      "rss_gb": 8.9
+    },
+    {
+      "epoch": 0,
+      "step": 3100,
+      "rss_gb": 9.0
+    },
+    {
+      "epoch": 0,
+      "step": 3150,
+      "rss_gb": 9.1
+    },
+    {
+      "epoch": 0,
+      "step": 3200,
+      "rss_gb": 9.1
+    },
+    {
+      "epoch": 0,
+      "step": 3250,
+      "rss_gb": 9.2
+    },
+    {
+      "epoch": 0,
+      "step": 3300,
+      "rss_gb": 9.3
+    },
+    {
+      "epoch": 0,
+      "step": 3350,
+      "rss_gb": 9.4
+    },
+    {
+      "epoch": 0,
+      "step": 3400,
+      "rss_gb": 9.4
+    },
+    {
+      "epoch": 0,
+      "step": 3450,
+      "rss_gb": 9.4
+    },
+    {
+      "epoch": 0,
+      "step": 3500,
+      "rss_gb": 9.5
+    },
+    {
+      "epoch": 0,
+      "step": 3550,
+      "rss_gb": 9.6
+    },
+    {
+      "epoch": 0,
+      "step": 3600,
+      "rss_gb": 9.7
+    },
+    {
+      "epoch": 0,
+      "step": 3650,
+      "rss_gb": 9.7
+    },
+    {
+      "epoch": 0,
+      "step": 3700,
+      "rss_gb": 9.8
+    },
+    {
+      "epoch": 0,
+      "step": 3750,
+      "rss_gb": 9.9
+    },
+    {
+      "epoch": 0,
+      "step": 3800,
+      "rss_gb": 10.0
+    },
+    {
+      "epoch": 0,
+      "step": 3850,
+      "rss_gb": 10.1
+    },
+    {
+      "epoch": 0,
+      "step": 3900,
+      "rss_gb": 10.2
+    },
+    {
+      "epoch": 0,
+      "step": 3950,
+      "rss_gb": 10.2
+    },
+    {
+      "epoch": 0,
+      "step": 4000,
+      "rss_gb": 10.3
+    },
+    {
+      "epoch": 0,
+      "step": 4050,
+      "rss_gb": 10.4
+    },
+    {
+      "epoch": 0,
+      "step": 4100,
+      "rss_gb": 10.5
+    },
+    {
+      "epoch": 0,
+      "step": 4150,
+      "rss_gb": 10.6
+    },
+    {
+      "epoch": 0,
+      "step": 4200,
+      "rss_gb": 10.7
+    },
+    {
+      "epoch": 0,
+      "step": 4250,
+      "rss_gb": 10.7
+    },
+    {
+      "epoch": 0,
+      "step": 4300,
+      "rss_gb": 10.8
+    },
+    {
+      "epoch": 0,
+      "step": 4350,
+      "rss_gb": 10.9
+    },
+    {
+      "epoch": 0,
+      "step": 4400,
+      "rss_gb": 11.0
+    },
+    {
+      "epoch": 0,
+      "step": 4450,
+      "rss_gb": 11.1
+    },
+    {
+      "epoch": 0,
+      "step": 4500,
+      "rss_gb": 11.2
+    },
+    {
+      "epoch": 0,
+      "step": 4550,
+      "rss_gb": 11.2
+    },
+    {
+      "epoch": 0,
+      "step": 4600,
+      "rss_gb": 11.3
+    },
+    {
+      "epoch": 0,
+      "step": 4650,
+      "rss_gb": 11.4
+    },
+    {
+      "epoch": 0,
+      "step": 4700,
+      "rss_gb": 11.5
+    },
+    {
+      "epoch": 0,
+      "step": 4750,
+      "rss_gb": 11.6
+    },
+    {
+      "epoch": 0,
+      "step": 4800,
+      "rss_gb": 11.7
+    },
+    {
+      "epoch": 0,
+      "step": 4850,
+      "rss_gb": 11.8
+    },
+    {
+      "epoch": 0,
+      "step": 4900,
+      "rss_gb": 11.8
+    },
+    {
+      "epoch": 0,
+      "step": 4950,
+      "rss_gb": 11.9
+    },
+    {
+      "epoch": 0,
+      "step": 5000,
+      "rss_gb": 12.0
+    },
+    {
+      "epoch": 0,
+      "step": 5050,
+      "rss_gb": 12.1
+    },
+    {
+      "epoch": 0,
+      "step": 5100,
+      "rss_gb": 12.2
+    },
+    {
+      "epoch": 0,
+      "step": 5150,
+      "rss_gb": 12.3
+    },
+    {
+      "epoch": 0,
+      "step": 5200,
+      "rss_gb": 12.3
+    },
+    {
+      "epoch": 0,
+      "step": 5250,
+      "rss_gb": 12.4
+    },
+    {
+      "epoch": 0,
+      "step": 5300,
+      "rss_gb": 12.5
+    },
+    {
+      "epoch": 1,
+      "step": 0,
+      "rss_gb": 12.6
+    },
+    {
+      "epoch": 1,
+      "step": 50,
+      "rss_gb": 12.7
+    },
+    {
+      "epoch": 1,
+      "step": 100,
+      "rss_gb": 12.8
+    },
+    {
+      "epoch": 1,
+      "step": 150,
+      "rss_gb": 12.8
+    },
+    {
+      "epoch": 1,
+      "step": 200,
+      "rss_gb": 12.9
+    },
+    {
+      "epoch": 1,
+      "step": 250,
+      "rss_gb": 13.0
+    },
+    {
+      "epoch": 1,
+      "step": 300,
+      "rss_gb": 13.1
+    },
+    {
+      "epoch": 1,
+      "step": 350,
+      "rss_gb": 13.2
+    },
+    {
+      "epoch": 1,
+      "step": 400,
+      "rss_gb": 13.3
+    },
+    {
+      "epoch": 1,
+      "step": 450,
+      "rss_gb": 13.3
+    },
+    {
+      "epoch": 1,
+      "step": 500,
+      "rss_gb": 13.4
+    },
+    {
+      "epoch": 1,
+      "step": 550,
+      "rss_gb": 13.5
+    },
+    {
+      "epoch": 1,
+      "step": 600,
+      "rss_gb": 13.6
+    },
+    {
+      "epoch": 1,
+      "step": 650,
+      "rss_gb": 13.7
+    },
+    {
+      "epoch": 1,
+      "step": 700,
+      "rss_gb": 13.8
+    },
+    {
+      "epoch": 1,
+      "step": 750,
+      "rss_gb": 13.8
+    },
+    {
+      "epoch": 1,
+      "step": 800,
+      "rss_gb": 13.9
+    },
+    {
+      "epoch": 1,
+      "step": 850,
+      "rss_gb": 14.0
+    },
+    {
+      "epoch": 1,
+      "step": 900,
+      "rss_gb": 14.1
+    },
+    {
+      "epoch": 1,
+      "step": 950,
+      "rss_gb": 14.2
+    },
+    {
+      "epoch": 1,
+      "step": 1000,
+      "rss_gb": 14.3
+    },
+    {
+      "epoch": 1,
+      "step": 1050,
+      "rss_gb": 14.4
+    },
+    {
+      "epoch": 1,
+      "step": 1100,
+      "rss_gb": 14.4
+    },
+    {
+      "epoch": 1,
+      "step": 1150,
+      "rss_gb": 14.5
+    },
+    {
+      "epoch": 1,
+      "step": 1200,
+      "rss_gb": 14.6
+    },
+    {
+      "epoch": 1,
+      "step": 1250,
+      "rss_gb": 14.7
+    },
+    {
+      "epoch": 1,
+      "step": 1300,
+      "rss_gb": 14.8
+    },
+    {
+      "epoch": 1,
+      "step": 1350,
+      "rss_gb": 14.9
+    },
+    {
+      "epoch": 1,
+      "step": 1400,
+      "rss_gb": 14.9
+    },
+    {
+      "epoch": 1,
+      "step": 1450,
+      "rss_gb": 15.0
+    },
+    {
+      "epoch": 1,
+      "step": 1500,
+      "rss_gb": 15.1
+    },
+    {
+      "epoch": 1,
+      "step": 1550,
+      "rss_gb": 15.2
+    },
+    {
+      "epoch": 1,
+      "step": 1600,
+      "rss_gb": 15.3
+    },
+    {
+      "epoch": 1,
+      "step": 1650,
+      "rss_gb": 15.4
+    },
+    {
+      "epoch": 1,
+      "step": 1700,
+      "rss_gb": 15.4
+    },
+    {
+      "epoch": 1,
+      "step": 1750,
+      "rss_gb": 15.5
+    },
+    {
+      "epoch": 1,
+      "step": 1800,
+      "rss_gb": 15.6
+    },
+    {
+      "epoch": 1,
+      "step": 1850,
+      "rss_gb": 15.7
+    },
+    {
+      "epoch": 1,
+      "step": 1900,
+      "rss_gb": 15.8
+    },
+    {
+      "epoch": 1,
+      "step": 1950,
+      "rss_gb": 15.9
+    },
+    {
+      "epoch": 1,
+      "step": 2000,
+      "rss_gb": 16.0
+    },
+    {
+      "epoch": 1,
+      "step": 2050,
+      "rss_gb": 16.0
+    },
+    {
+      "epoch": 1,
+      "step": 2100,
+      "rss_gb": 16.1
+    },
+    {
+      "epoch": 1,
+      "step": 2150,
+      "rss_gb": 16.2
+    },
+    {
+      "epoch": 1,
+      "step": 2200,
+      "rss_gb": 16.3
+    },
+    {
+      "epoch": 1,
+      "step": 2250,
+      "rss_gb": 16.4
+    },
+    {
+      "epoch": 1,
+      "step": 2300,
+      "rss_gb": 16.5
+    },
+    {
+      "epoch": 1,
+      "step": 2350,
+      "rss_gb": 16.5
+    },
+    {
+      "epoch": 1,
+      "step": 2400,
+      "rss_gb": 16.6
+    },
+    {
+      "epoch": 1,
+      "step": 2450,
+      "rss_gb": 16.7
+    },
+    {
+      "epoch": 1,
+      "step": 2500,
+      "rss_gb": 16.8
+    },
+    {
+      "epoch": 1,
+      "step": 2550,
+      "rss_gb": 16.9
+    },
+    {
+      "epoch": 1,
+      "step": 2600,
+      "rss_gb": 17.0
+    },
+    {
+      "epoch": 1,
+      "step": 2650,
+      "rss_gb": 17.1
+    },
+    {
+      "epoch": 1,
+      "step": 2700,
+      "rss_gb": 17.1
+    },
+    {
+      "epoch": 1,
+      "step": 2750,
+      "rss_gb": 17.2
+    },
+    {
+      "epoch": 1,
+      "step": 2800,
+      "rss_gb": 17.3
+    },
+    {
+      "epoch": 1,
+      "step": 2850,
+      "rss_gb": 17.4
+    },
+    {
+      "epoch": 1,
+      "step": 2900,
+      "rss_gb": 17.5
+    },
+    {
+      "epoch": 1,
+      "step": 2950,
+      "rss_gb": 17.6
+    },
+    {
+      "epoch": 1,
+      "step": 3000,
+      "rss_gb": 17.6
+    },
+    {
+      "epoch": 1,
+      "step": 3050,
+      "rss_gb": 17.7
+    },
+    {
+      "epoch": 1,
+      "step": 3100,
+      "rss_gb": 17.8
+    },
+    {
+      "epoch": 1,
+      "step": 3150,
+      "rss_gb": 17.9
+    },
+    {
+      "epoch": 1,
+      "step": 3200,
+      "rss_gb": 18.0
+    },
+    {
+      "epoch": 1,
+      "step": 3250,
+      "rss_gb": 18.1
+    },
+    {
+      "epoch": 1,
+      "step": 3300,
+      "rss_gb": 18.1
+    },
+    {
+      "epoch": 1,
+      "step": 3350,
+      "rss_gb": 18.2
+    },
+    {
+      "epoch": 1,
+      "step": 3400,
+      "rss_gb": 18.3
+    },
+    {
+      "epoch": 1,
+      "step": 3450,
+      "rss_gb": 18.4
+    },
+    {
+      "epoch": 1,
+      "step": 3500,
+      "rss_gb": 18.5
+    },
+    {
+      "epoch": 1,
+      "step": 3550,
+      "rss_gb": 18.6
+    },
+    {
+      "epoch": 1,
+      "step": 3600,
+      "rss_gb": 18.6
+    },
+    {
+      "epoch": 1,
+      "step": 3650,
+      "rss_gb": 18.7
+    },
+    {
+      "epoch": 1,
+      "step": 3700,
+      "rss_gb": 18.8
+    },
+    {
+      "epoch": 1,
+      "step": 3750,
+      "rss_gb": 18.9
+    },
+    {
+      "epoch": 1,
+      "step": 3800,
+      "rss_gb": 19.0
+    },
+    {
+      "epoch": 1,
+      "step": 3850,
+      "rss_gb": 19.1
+    },
+    {
+      "epoch": 1,
+      "step": 3900,
+      "rss_gb": 19.1
+    },
+    {
+      "epoch": 1,
+      "step": 3950,
+      "rss_gb": 19.1
+    },
+    {
+      "epoch": 1,
+      "step": 4000,
+      "rss_gb": 19.1
+    },
+    {
+      "epoch": 1,
+      "step": 4050,
+      "rss_gb": 19.1
+    },
+    {
+      "epoch": 1,
+      "step": 4100,
+      "rss_gb": 19.2
+    },
+    {
+      "epoch": 1,
+      "step": 4150,
+      "rss_gb": 19.3
+    },
+    {
+      "epoch": 1,
+      "step": 4200,
+      "rss_gb": 19.4
+    },
+    {
+      "epoch": 1,
+      "step": 4250,
+      "rss_gb": 19.5
+    },
+    {
+      "epoch": 1,
+      "step": 4300,
+      "rss_gb": 19.5
+    },
+    {
+      "epoch": 1,
+      "step": 4350,
+      "rss_gb": 19.6
+    },
+    {
+      "epoch": 1,
+      "step": 4400,
+      "rss_gb": 19.7
+    },
+    {
+      "epoch": 1,
+      "step": 4450,
+      "rss_gb": 19.8
+    },
+    {
+      "epoch": 1,
+      "step": 4500,
+      "rss_gb": 19.9
+    },
+    {
+      "epoch": 1,
+      "step": 4550,
+      "rss_gb": 20.0
+    },
+    {
+      "epoch": 1,
+      "step": 4600,
+      "rss_gb": 20.1
+    },
+    {
+      "epoch": 1,
+      "step": 4650,
+      "rss_gb": 20.1
+    },
+    {
+      "epoch": 1,
+      "step": 4700,
+      "rss_gb": 20.2
+    },
+    {
+      "epoch": 1,
+      "step": 4750,
+      "rss_gb": 20.3
+    },
+    {
+      "epoch": 1,
+      "step": 4800,
+      "rss_gb": 20.4
+    },
+    {
+      "epoch": 1,
+      "step": 4850,
+      "rss_gb": 20.5
+    },
+    {
+      "epoch": 1,
+      "step": 4900,
+      "rss_gb": 20.6
+    },
+    {
+      "epoch": 1,
+      "step": 4950,
+      "rss_gb": 20.6
+    },
+    {
+      "epoch": 1,
+      "step": 5000,
+      "rss_gb": 20.7
+    },
+    {
+      "epoch": 1,
+      "step": 5050,
+      "rss_gb": 20.8
+    },
+    {
+      "epoch": 1,
+      "step": 5100,
+      "rss_gb": 20.9
+    },
+    {
+      "epoch": 1,
+      "step": 5150,
+      "rss_gb": 21.0
+    },
+    {
+      "epoch": 1,
+      "step": 5200,
+      "rss_gb": 21.1
+    },
+    {
+      "epoch": 1,
+      "step": 5250,
+      "rss_gb": 21.1
+    },
+    {
+      "epoch": 1,
+      "step": 5300,
+      "rss_gb": 21.2
+    },
+    {
+      "epoch": 2,
+      "step": 0,
+      "rss_gb": 22.6
+    },
+    {
+      "epoch": 2,
+      "step": 50,
+      "rss_gb": 22.6
+    },
+    {
+      "epoch": 2,
+      "step": 100,
+      "rss_gb": 22.7
+    },
+    {
+      "epoch": 2,
+      "step": 150,
+      "rss_gb": 22.8
+    },
+    {
+      "epoch": 2,
+      "step": 200,
+      "rss_gb": 22.9
+    },
+    {
+      "epoch": 2,
+      "step": 250,
+      "rss_gb": 22.9
+    },
+    {
+      "epoch": 2,
+      "step": 300,
+      "rss_gb": 23.0
+    },
+    {
+      "epoch": 2,
+      "step": 350,
+      "rss_gb": 23.1
+    },
+    {
+      "epoch": 2,
+      "step": 400,
+      "rss_gb": 23.2
+    },
+    {
+      "epoch": 2,
+      "step": 450,
+      "rss_gb": 23.3
+    },
+    {
+      "epoch": 2,
+      "step": 500,
+      "rss_gb": 23.4
+    },
+    {
+      "epoch": 2,
+      "step": 550,
+      "rss_gb": 23.4
+    },
+    {
+      "epoch": 2,
+      "step": 600,
+      "rss_gb": 23.5
+    },
+    {
+      "epoch": 2,
+      "step": 650,
+      "rss_gb": 23.6
+    },
+    {
+      "epoch": 2,
+      "step": 700,
+      "rss_gb": 23.7
+    },
+    {
+      "epoch": 2,
+      "step": 750,
+      "rss_gb": 23.8
+    },
+    {
+      "epoch": 2,
+      "step": 800,
+      "rss_gb": 23.9
+    },
+    {
+      "epoch": 2,
+      "step": 850,
+      "rss_gb": 23.9
+    },
+    {
+      "epoch": 2,
+      "step": 900,
+      "rss_gb": 24.0
+    },
+    {
+      "epoch": 2,
+      "step": 950,
+      "rss_gb": 24.1
+    },
+    {
+      "epoch": 2,
+      "step": 1000,
+      "rss_gb": 24.2
+    },
+    {
+      "epoch": 2,
+      "step": 1050,
+      "rss_gb": 24.3
+    },
+    {
+      "epoch": 2,
+      "step": 1100,
+      "rss_gb": 24.4
+    },
+    {
+      "epoch": 2,
+      "step": 1150,
+      "rss_gb": 24.5
+    },
+    {
+      "epoch": 2,
+      "step": 1200,
+      "rss_gb": 24.5
+    },
+    {
+      "epoch": 2,
+      "step": 1250,
+      "rss_gb": 24.6
+    },
+    {
+      "epoch": 2,
+      "step": 1300,
+      "rss_gb": 24.7
+    },
+    {
+      "epoch": 2,
+      "step": 1350,
+      "rss_gb": 24.8
+    },
+    {
+      "epoch": 2,
+      "step": 1400,
+      "rss_gb": 24.9
+    },
+    {
+      "epoch": 2,
+      "step": 1450,
+      "rss_gb": 25.0
+    },
+    {
+      "epoch": 2,
+      "step": 1500,
+      "rss_gb": 25.0
+    },
+    {
+      "epoch": 2,
+      "step": 1550,
+      "rss_gb": 25.1
+    },
+    {
+      "epoch": 2,
+      "step": 1600,
+      "rss_gb": 25.2
+    },
+    {
+      "epoch": 2,
+      "step": 1650,
+      "rss_gb": 25.3
+    },
+    {
+      "epoch": 2,
+      "step": 1700,
+      "rss_gb": 25.4
+    },
+    {
+      "epoch": 2,
+      "step": 1750,
+      "rss_gb": 25.5
+    },
+    {
+      "epoch": 2,
+      "step": 1800,
+      "rss_gb": 25.6
+    },
+    {
+      "epoch": 2,
+      "step": 1850,
+      "rss_gb": 25.6
+    },
+    {
+      "epoch": 2,
+      "step": 1900,
+      "rss_gb": 25.7
+    },
+    {
+      "epoch": 2,
+      "step": 1950,
+      "rss_gb": 25.8
+    },
+    {
+      "epoch": 2,
+      "step": 2000,
+      "rss_gb": 25.9
+    },
+    {
+      "epoch": 2,
+      "step": 2050,
+      "rss_gb": 26.0
+    },
+    {
+      "epoch": 2,
+      "step": 2100,
+      "rss_gb": 26.1
+    },
+    {
+      "epoch": 2,
+      "step": 2150,
+      "rss_gb": 26.1
+    },
+    {
+      "epoch": 2,
+      "step": 2200,
+      "rss_gb": 26.2
+    },
+    {
+      "epoch": 2,
+      "step": 2250,
+      "rss_gb": 26.3
+    },
+    {
+      "epoch": 2,
+      "step": 2300,
+      "rss_gb": 26.4
+    },
+    {
+      "epoch": 2,
+      "step": 2350,
+      "rss_gb": 26.5
+    },
+    {
+      "epoch": 2,
+      "step": 2400,
+      "rss_gb": 26.6
+    },
+    {
+      "epoch": 2,
+      "step": 2450,
+      "rss_gb": 26.6
+    },
+    {
+      "epoch": 2,
+      "step": 2500,
+      "rss_gb": 26.7
+    },
+    {
+      "epoch": 2,
+      "step": 2550,
+      "rss_gb": 26.8
+    },
+    {
+      "epoch": 2,
+      "step": 2600,
+      "rss_gb": 26.9
+    },
+    {
+      "epoch": 2,
+      "step": 2650,
+      "rss_gb": 27.0
+    },
+    {
+      "epoch": 2,
+      "step": 2700,
+      "rss_gb": 27.1
+    },
+    {
+      "epoch": 2,
+      "step": 2750,
+      "rss_gb": 27.1
+    },
+    {
+      "epoch": 2,
+      "step": 2800,
+      "rss_gb": 27.2
+    },
+    {
+      "epoch": 2,
+      "step": 2850,
+      "rss_gb": 27.3
+    },
+    {
+      "epoch": 2,
+      "step": 2900,
+      "rss_gb": 27.4
+    },
+    {
+      "epoch": 2,
+      "step": 2950,
+      "rss_gb": 27.5
+    },
+    {
+      "epoch": 2,
+      "step": 3000,
+      "rss_gb": 27.5
+    },
+    {
+      "epoch": 2,
+      "step": 3050,
+      "rss_gb": 27.6
+    },
+    {
+      "epoch": 2,
+      "step": 3100,
+      "rss_gb": 27.7
+    },
+    {
+      "epoch": 2,
+      "step": 3150,
+      "rss_gb": 27.8
+    },
+    {
+      "epoch": 2,
+      "step": 3200,
+      "rss_gb": 27.9
+    },
+    {
+      "epoch": 2,
+      "step": 3250,
+      "rss_gb": 28.0
+    },
+    {
+      "epoch": 2,
+      "step": 3300,
+      "rss_gb": 28.1
+    },
+    {
+      "epoch": 2,
+      "step": 3350,
+      "rss_gb": 28.1
+    },
+    {
+      "epoch": 2,
+      "step": 3400,
+      "rss_gb": 28.2
+    },
+    {
+      "epoch": 2,
+      "step": 3450,
+      "rss_gb": 28.3
+    },
+    {
+      "epoch": 2,
+      "step": 3500,
+      "rss_gb": 28.4
+    },
+    {
+      "epoch": 2,
+      "step": 3550,
+      "rss_gb": 28.5
+    },
+    {
+      "epoch": 2,
+      "step": 3600,
+      "rss_gb": 28.6
+    },
+    {
+      "epoch": 2,
+      "step": 3650,
+      "rss_gb": 28.6
+    },
+    {
+      "epoch": 2,
+      "step": 3700,
+      "rss_gb": 28.7
+    },
+    {
+      "epoch": 2,
+      "step": 3750,
+      "rss_gb": 28.8
+    },
+    {
+      "epoch": 2,
+      "step": 3800,
+      "rss_gb": 28.9
+    },
+    {
+      "epoch": 2,
+      "step": 3850,
+      "rss_gb": 29.0
+    },
+    {
+      "epoch": 2,
+      "step": 3900,
+      "rss_gb": 29.1
+    },
+    {
+      "epoch": 2,
+      "step": 3950,
+      "rss_gb": 29.1
+    }
+  ]
+}

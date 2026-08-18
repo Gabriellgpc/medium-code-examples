@@ -1,0 +1,350 @@
+{
+  "args": {
+    "heads": "ball,detection",
+    "epochs": 3,
+    "batch": 8,
+    "lr": 0.001,
+    "height": 384,
+    "width": 640,
+    "stem_stride": 4,
+    "head_upsample": 4,
+    "trunk_width": 18,
+    "workers": 2,
+    "limit": null,
+    "val_limit": 1500,
+    "val_stride": 29,
+    "val_split": "valid",
+    "eval_every": 1,
+    "tag": "joint_ball_det"
+  },
+  "params_m": 2.187,
+  "history": [
+    {
+      "epoch": 0,
+      "seconds": 1697.6,
+      "train": {
+        "ball": 1.01573,
+        "detection": 1.66946
+      },
+      "weights": {
+        "ball": 1.5759,
+        "detection": 0.8527
+      },
+      "val_loss": {
+        "ball": 1.37517,
+        "detection": 1.49629
+      },
+      "ball_val": {
+        "1": {
+          "tau_px": 1.0,
+          "TP": 78,
+          "FP": 473,
+          "FN": 846,
+          "TN": 103,
+          "precision": 0.1416,
+          "recall": 0.0844,
+          "f1": 0.1058,
+          "accuracy": 0.1207,
+          "ap": 0.0099,
+          "n_frames": 1500
+        },
+        "2": {
+          "tau_px": 2.0,
+          "TP": 211,
+          "FP": 340,
+          "FN": 846,
+          "TN": 103,
+          "precision": 0.3829,
+          "recall": 0.1996,
+          "f1": 0.2624,
+          "accuracy": 0.2093,
+          "ap": 0.0657,
+          "n_frames": 1500
+        },
+        "3": {
+          "tau_px": 3.0,
+          "TP": 307,
+          "FP": 244,
+          "FN": 846,
+          "TN": 103,
+          "precision": 0.5572,
+          "recall": 0.2663,
+          "f1": 0.3603,
+          "accuracy": 0.2733,
+          "ap": 0.1339,
+          "n_frames": 1500
+        },
+        "4": {
+          "tau_px": 4.0,
+          "TP": 344,
+          "FP": 207,
+          "FN": 846,
+          "TN": 103,
+          "precision": 0.6243,
+          "recall": 0.2891,
+          "f1": 0.3952,
+          "accuracy": 0.298,
+          "ap": 0.1685,
+          "n_frames": 1500
+        },
+        "6": {
+          "tau_px": 6.0,
+          "TP": 388,
+          "FP": 163,
+          "FN": 846,
+          "TN": 103,
+          "precision": 0.7042,
+          "recall": 0.3144,
+          "f1": 0.4347,
+          "accuracy": 0.3273,
+          "ap": 0.2132,
+          "n_frames": 1500
+        },
+        "8": {
+          "tau_px": 8.0,
+          "TP": 404,
+          "FP": 147,
+          "FN": 846,
+          "TN": 103,
+          "precision": 0.7332,
+          "recall": 0.3232,
+          "f1": 0.4486,
+          "accuracy": 0.338,
+          "ap": 0.2311,
+          "n_frames": 1500
+        },
+        "12": {
+          "tau_px": 12.0,
+          "TP": 421,
+          "FP": 130,
+          "FN": 846,
+          "TN": 103,
+          "precision": 0.7641,
+          "recall": 0.3323,
+          "f1": 0.4631,
+          "accuracy": 0.3493,
+          "ap": 0.2541,
+          "n_frames": 1500
+        }
+      }
+    },
+    {
+      "epoch": 1,
+      "seconds": 1678.1,
+      "train": {
+        "ball": 0.50179,
+        "detection": 0.9942
+      },
+      "weights": {
+        "ball": 2.3638,
+        "detection": 1.072
+      },
+      "val_loss": {
+        "ball": 1.40041,
+        "detection": 1.17791
+      },
+      "ball_val": {
+        "1": {
+          "tau_px": 1.0,
+          "TP": 81,
+          "FP": 576,
+          "FN": 746,
+          "TN": 97,
+          "precision": 0.1233,
+          "recall": 0.0979,
+          "f1": 0.1092,
+          "accuracy": 0.1187,
+          "ap": 0.0109,
+          "n_frames": 1500
+        },
+        "2": {
+          "tau_px": 2.0,
+          "TP": 212,
+          "FP": 445,
+          "FN": 746,
+          "TN": 97,
+          "precision": 0.3227,
+          "recall": 0.2213,
+          "f1": 0.2625,
+          "accuracy": 0.206,
+          "ap": 0.0714,
+          "n_frames": 1500
+        },
+        "3": {
+          "tau_px": 3.0,
+          "TP": 322,
+          "FP": 335,
+          "FN": 746,
+          "TN": 97,
+          "precision": 0.4901,
+          "recall": 0.3015,
+          "f1": 0.3733,
+          "accuracy": 0.2793,
+          "ap": 0.1447,
+          "n_frames": 1500
+        },
+        "4": {
+          "tau_px": 4.0,
+          "TP": 383,
+          "FP": 274,
+          "FN": 746,
+          "TN": 97,
+          "precision": 0.583,
+          "recall": 0.3392,
+          "f1": 0.4289,
+          "accuracy": 0.32,
+          "ap": 0.1942,
+          "n_frames": 1500
+        },
+        "6": {
+          "tau_px": 6.0,
+          "TP": 450,
+          "FP": 207,
+          "FN": 746,
+          "TN": 97,
+          "precision": 0.6849,
+          "recall": 0.3763,
+          "f1": 0.4857,
+          "accuracy": 0.3647,
+          "ap": 0.2543,
+          "n_frames": 1500
+        },
+        "8": {
+          "tau_px": 8.0,
+          "TP": 477,
+          "FP": 180,
+          "FN": 746,
+          "TN": 97,
+          "precision": 0.726,
+          "recall": 0.39,
+          "f1": 0.5074,
+          "accuracy": 0.3827,
+          "ap": 0.2775,
+          "n_frames": 1500
+        },
+        "12": {
+          "tau_px": 12.0,
+          "TP": 509,
+          "FP": 148,
+          "FN": 746,
+          "TN": 97,
+          "precision": 0.7747,
+          "recall": 0.4056,
+          "f1": 0.5324,
+          "accuracy": 0.404,
+          "ap": 0.3049,
+          "n_frames": 1500
+        }
+      }
+    },
+    {
+      "epoch": 2,
+      "seconds": 1667.6,
+      "train": {
+        "ball": 0.33053,
+        "detection": 0.79655
+      },
+      "weights": {
+        "ball": 2.8763,
+        "detection": 1.1874
+      },
+      "val_loss": {
+        "ball": 1.60061,
+        "detection": 1.17936
+      },
+      "ball_val": {
+        "1": {
+          "tau_px": 1.0,
+          "TP": 106,
+          "FP": 566,
+          "FN": 727,
+          "TN": 101,
+          "precision": 0.1577,
+          "recall": 0.1273,
+          "f1": 0.1409,
+          "accuracy": 0.138,
+          "ap": 0.0193,
+          "n_frames": 1500
+        },
+        "2": {
+          "tau_px": 2.0,
+          "TP": 254,
+          "FP": 418,
+          "FN": 727,
+          "TN": 101,
+          "precision": 0.378,
+          "recall": 0.2589,
+          "f1": 0.3073,
+          "accuracy": 0.2367,
+          "ap": 0.098,
+          "n_frames": 1500
+        },
+        "3": {
+          "tau_px": 3.0,
+          "TP": 373,
+          "FP": 299,
+          "FN": 727,
+          "TN": 101,
+          "precision": 0.5551,
+          "recall": 0.3391,
+          "f1": 0.421,
+          "accuracy": 0.316,
+          "ap": 0.1908,
+          "n_frames": 1500
+        },
+        "4": {
+          "tau_px": 4.0,
+          "TP": 426,
+          "FP": 246,
+          "FN": 727,
+          "TN": 101,
+          "precision": 0.6339,
+          "recall": 0.3695,
+          "f1": 0.4668,
+          "accuracy": 0.3513,
+          "ap": 0.2318,
+          "n_frames": 1500
+        },
+        "6": {
+          "tau_px": 6.0,
+          "TP": 483,
+          "FP": 189,
+          "FN": 727,
+          "TN": 101,
+          "precision": 0.7188,
+          "recall": 0.3992,
+          "f1": 0.5133,
+          "accuracy": 0.3893,
+          "ap": 0.2851,
+          "n_frames": 1500
+        },
+        "8": {
+          "tau_px": 8.0,
+          "TP": 503,
+          "FP": 169,
+          "FN": 727,
+          "TN": 101,
+          "precision": 0.7485,
+          "recall": 0.4089,
+          "f1": 0.5289,
+          "accuracy": 0.4027,
+          "ap": 0.3021,
+          "n_frames": 1500
+        },
+        "12": {
+          "tau_px": 12.0,
+          "TP": 527,
+          "FP": 145,
+          "FN": 727,
+          "TN": 101,
+          "precision": 0.7842,
+          "recall": 0.4203,
+          "f1": 0.5472,
+          "accuracy": 0.4187,
+          "ap": 0.3233,
+          "n_frames": 1500
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "cap_w32": {
+    "checkpoint": "/kaggle/input/notebooks/condados/snet-capacity-pitchstride/snet/cap_w32/best.pt",
+    "frames": 500,
+    "kp_stride": 4,
+    "landmarks_found_median": 7.0,
+    "frames_without_predicted_homography": 57,
+    "frames_without_gt_homography": 19,
+    "results": {
+      "gt_boxes_gt_H": {
+        "label": "GT boxes + GT homography (harness sanity, expect ~0)",
+        "n": 7886,
+        "median_m": 0.083,
+        "p90_m": 0.238,
+        "pct_over_5m": 0.05,
+        "pct_under_1m": 98.96
+      },
+      "gt_boxes_pred_H": {
+        "label": "GT boxes + predicted homography (isolates the pitch head)",
+        "n": 6997,
+        "median_m": 0.761,
+        "p90_m": 8.635,
+        "pct_over_5m": 13.06,
+        "pct_under_1m": 59.21
+      },
+      "pred_boxes_gt_H": {
+        "label": "predicted boxes + GT homography (isolates the detector)",
+        "n": 6445,
+        "median_m": 0.293,
+        "p90_m": 0.911,
+        "pct_over_5m": 0.0,
+        "pct_under_1m": 91.78
+      },
+      "pred_boxes_pred_H": {
+        "label": "the pipeline as it would ship",
+        "n": 5738,
+        "median_m": 0.907,
+        "p90_m": 8.107,
+        "pct_over_5m": 13.02,
+        "pct_under_1m": 53.9
+      }
+    }
+  },
+  "pitch_s2": {
+    "checkpoint": "/kaggle/input/notebooks/condados/snet-capacity-pitchstride/snet/pitch_s2/best.pt",
+    "frames": 500,
+    "kp_stride": 2,
+    "landmarks_found_median": 5.0,
+    "frames_without_predicted_homography": 148,
+    "frames_without_gt_homography": 19,
+    "results": {
+      "gt_boxes_gt_H": {
+        "label": "GT boxes + GT homography (harness sanity, expect ~0)",
+        "n": 7886,
+        "median_m": 0.083,
+        "p90_m": 0.238,
+        "pct_over_5m": 0.05,
+        "pct_under_1m": 98.96
+      },
+      "gt_boxes_pred_H": {
+        "label": "GT boxes + predicted homography (isolates the pitch head)",
+        "n": 5417,
+        "median_m": 0.823,
+        "p90_m": 18.301,
+        "pct_over_5m": 17.83,
+        "pct_under_1m": 56.14
+      },
+      "pred_boxes_gt_H": {
+        "label": "predicted boxes + GT homography (isolates the detector)",
+        "n": 6394,
+        "median_m": 0.283,
+        "p90_m": 0.902,
+        "pct_over_5m": 0.0,
+        "pct_under_1m": 91.85
+      },
+      "pred_boxes_pred_H": {
+        "label": "the pipeline as it would ship",
+        "n": 4655,
+        "median_m": 0.932,
+        "p90_m": 18.42,
+        "pct_over_5m": 17.34,
+        "pct_under_1m": 52.22
+      }
+    }
+  }
+}

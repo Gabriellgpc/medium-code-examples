@@ -1,0 +1,83 @@
+{
+  "train": {
+    "sequences": [
+      "SNGS-071",
+      "SNGS-100",
+      "SNGS-070",
+      "SNGS-115",
+      "SNGS-167",
+      "SNGS-064",
+      "SNGS-151",
+      "SNGS-168",
+      "SNGS-109",
+      "SNGS-097",
+      "SNGS-107",
+      "SNGS-102",
+      "SNGS-062",
+      "SNGS-099",
+      "SNGS-063",
+      "SNGS-061",
+      "SNGS-166",
+      "SNGS-113",
+      "SNGS-060",
+      "SNGS-066",
+      "SNGS-103",
+      "SNGS-157",
+      "SNGS-101",
+      "SNGS-098",
+      "SNGS-164",
+      "SNGS-076",
+      "SNGS-077",
+      "SNGS-105",
+      "SNGS-106",
+      "SNGS-161",
+      "SNGS-068",
+      "SNGS-114",
+      "SNGS-158",
+      "SNGS-169",
+      "SNGS-111",
+      "SNGS-104",
+      "SNGS-165",
+      "SNGS-069",
+      "SNGS-152",
+      "SNGS-160",
+      "SNGS-162",
+      "SNGS-154",
+      "SNGS-073",
+      "SNGS-072",
+      "SNGS-067",
+      "SNGS-159",
+      "SNGS-153",
+      "SNGS-170",
+      "SNGS-065",
+      "SNGS-163",
+      "SNGS-074",
+      "SNGS-108",
+      "SNGS-155",
+      "SNGS-112",
+      "SNGS-075",
+      "SNGS-110"
+    ],
+    "images": 42000,
+    "boxes": 718827,
+    "per_class": {
+      "ball": 40457,
+      "player": 594467,
+      "referee": 60546,
+      "goalkeeper": 23357
+    }
+  },
+  "val": {
+    "sequences": [
+      "SNGS-156"
+    ],
+    "images": 750,
+    "boxes": 12728,
+    "per_class": {
+      "ball": 474,
+      "player": 10504,
+      "referee": 1000,
+      "goalkeeper": 750
+    }
+  }
+}

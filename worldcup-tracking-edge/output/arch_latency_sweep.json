@@ -1,0 +1,95 @@
+{
+  "device": "Intel(R) Iris(R) Xe Graphics (iGPU)",
+  "target_fps": 25.0,
+  "protocol": {
+    "warmup_discarded": 5,
+    "runs": 30,
+    "statistic": "median",
+    "batch": 1,
+    "precision": "FP16 IR on GPU plugin",
+    "excluded": "preprocessing, decoding, postprocessing"
+  },
+  "note": "random weights; this measures architecture cost, not accuracy",
+  "results": [
+    {
+      "config": "FINAL 384x640 s4 w18 up4",
+      "stem_stride": 4,
+      "input": [
+        384,
+        640
+      ],
+      "trunk_width": 18,
+      "head_upsample": 4,
+      "params_m": 2.27,
+      "output_hw": [
+        384,
+        640
+      ],
+      "median_ms": 20.76,
+      "p10_ms": 18.49,
+      "p90_ms": 32.7,
+      "fps": 48.16,
+      "native_px_per_output_px": 3.0
+    },
+    {
+      "config": "final w32              ",
+      "stem_stride": 4,
+      "input": [
+        384,
+        640
+      ],
+      "trunk_width": 32,
+      "head_upsample": 4,
+      "params_m": 6.32,
+      "output_hw": [
+        384,
+        640
+      ],
+      "median_ms": 32.41,
+      "p10_ms": 26.84,
+      "p90_ms": 38.73,
+      "fps": 30.86,
+      "native_px_per_output_px": 3.0
+    },
+    {
+      "config": "wasb  384x640 s1 w18 up1",
+      "stem_stride": 1,
+      "input": [
+        384,
+        640
+      ],
+      "trunk_width": 18,
+      "head_upsample": 1,
+      "params_m": 2.26,
+      "output_hw": [
+        384,
+        640
+      ],
+      "median_ms": 230.2,
+      "p10_ms": 203.78,
+      "p90_ms": 264.97,
+      "fps": 4.34,
+      "native_px_per_output_px": 3.0
+    },
+    {
+      "config": "coarse 384x640 s4 w18 up1",
+      "stem_stride": 4,
+      "input": [
+        384,
+        640
+      ],
+      "trunk_width": 18,
+      "head_upsample": 1,
+      "params_m": 2.26,
+      "output_hw": [
+        96,
+        160
+      ],
+      "median_ms": 20.43,
+      "p10_ms": 19.5,
+      "p90_ms": 22.13,
+      "fps": 48.94,
+      "native_px_per_output_px": 12.0
+    }
+  ]
+}
